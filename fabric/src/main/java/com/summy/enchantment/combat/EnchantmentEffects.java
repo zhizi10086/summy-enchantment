@@ -893,6 +893,14 @@ public final class EnchantmentEffects {
 		return floorToHalfHeart(raw);
 	}
 
+	/** 当前胸甲等级对应的生命护盾上限；没有该附魔时返回 0 */
+	public static float lifeShieldCap(LivingEntity entity) {
+		int level = entity == null || ModEnchantments.LIFE_SHIELD == null
+				? 0
+				: chestLevel(entity, ModEnchantments.LIFE_SHIELD);
+		return level <= 0 ? 0.0F : lifeShieldCap(entity, level);
+	}
+
 	/** 护盾值与吸收值统一量化到半颗心（0.5）精度，避免 HUD 多画半颗心 */
 	public static float quantizeShield(float value) {
 		return Math.max(0.0F, Math.round(value * 2.0F) / 2.0F);
@@ -947,6 +955,31 @@ public final class EnchantmentEffects {
 	}
 
 	/**
+	 * 脚本/API 用的直接护盾注入：amount 是护盾点数，不是治疗量。
+	 *
+	 * <p>仅服务端生效，要求玩家当前胸甲带生命护盾且开关打开；会同时写回属性与吸收池，
+	 * 返回实际增加的点数（已按上限和半心精度夹过）。生命修补/治疗链路不在这里参与。
+	 */
+	public static float addLifeShield(LivingEntity entity, float amount) {
+		if (entity == null || entity.getWorld().isClient || !Float.isFinite(amount) || amount <= 0.0F) {
+			return 0.0F;
+		}
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		int level = ModEnchantments.LIFE_SHIELD == null ? 0 : chestLevel(entity, ModEnchantments.LIFE_SHIELD);
+		if (!config.enableLifeShield || level <= 0 || lifeShieldInstance(entity) == null) {
+			return 0.0F;
+		}
+		float current = lifeShield(entity);
+		float target = Math.min(lifeShieldCap(entity, level), quantizeShield(current + amount));
+		float added = Math.max(0.0F, target - current);
+		if (added > 0.0F) {
+			setLifeShield(entity, target);
+			addShieldToPool(entity, added);
+		}
+		return added;
+	}
+
+	/**
 	 * 把我方护盾的增量加到吸收值上（只加不减）。
 	 *
 	 * <p>并记录"我方写入后的池子值"，供之后的消耗记账使用。
@@ -981,7 +1014,7 @@ public final class EnchantmentEffects {
 		}
 		// 登录 / 非死亡重生后的第一次维护：属性里的护盾可能在存档里存在，
 		// 但吸收池在重登时只保留了当时的残余值。先按属性对账一次，避免“属性 53.5、吸收 3.5”的脱节。
-		if (!SHIELD_TRACK.containsKey(entity)) {
+		if (shieldValue > 0.0F && !SHIELD_TRACK.containsKey(entity)) {
 			restoreLifeShieldToPool(entity);
 			return;
 		}

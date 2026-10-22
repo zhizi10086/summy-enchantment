@@ -3,6 +3,8 @@
 Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
+>
+> 🔌 **KubeJS 基础 API（方法、示例、边界）见 [docs/kubejs.md](../docs/kubejs.md)**
 
 ## 环境
 
@@ -14,6 +16,15 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Fabric API | 0.92.7+1.20.1 |
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
+
+## 1.3.9 KubeJS 基础 API（契约不变）
+
+- 新增公开 `SummyEnchantmentApi` 和可选 KubeJS 全局绑定 `SummyEnchantment`；支持读取附魔等级、
+  读取/安全增加生命护盾、预览/执行嗜血、读取近战乘区。
+- `addLifeShield` 是护盾点数直加（服务端、需胸甲生命护盾、受上限约束）；`applyLifesteal` 只用于
+  尚未经过 SE 管线的自定义伤害，正常命中不要重复调用。
+- KubeJS 未安装时插件不会被加载，SE 行为与 1.3.8 一致；现有附魔/属性/标签/命令/配置/协议不变。
+- 验证：Fabric `gradlew build` 通过；产物为 `summy-enchantment-1.3.9.jar`（1.3.8 保留）。
 
 ## 铁砧：消耗经验点数 + 移除"过于昂贵"
 
@@ -305,9 +316,11 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.3.3.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.3.9.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
+>
+> `libs/kubejs-fabric-2001.6.5-build.16.jar` 同样只在编译期用于可选 KubeJS 插件，不进入发布 jar。
 
 ## 游戏内验收
 

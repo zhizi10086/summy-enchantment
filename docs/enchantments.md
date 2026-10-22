@@ -1,9 +1,10 @@
 # Summy Enchantment 全附魔总表
 
-> **适用版本**：1.3.8（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
+> **适用版本**：1.3.9（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
 > **数值口径**：文中数值都是**默认值**，实际以配置页或 `config/summy-enchantment.json` 为准；配置键后的括号里写默认值。
 > **命名空间**：本模组所有附魔 id 都是 `summy_enchantment:<id>`；语言键为 `enchantment.summy_enchantment.<id>`。
 > 相关专题（铁砧、力量Plus、伤害管线与限伤、粒子与提示、兼容性）见文末「机制附录」。
+> KubeJS 基础 API 见 [kubejs.md](kubejs.md)。
 
 ## 速览表（32 个）
 
@@ -423,5 +424,5 @@
 
 - 附魔 **32** 个；配置 **99** 项，按功能域分成 **11 组**：核心机制 8 / 原版改动 5 / 武器附魔 12 / 弓弩与箭矢 12 / 生存与治疗 12 / 战斗状态 7 / 防御与耐久 7 / 食物与采集 7 / 粒子与特效 12 / 箭矢特性 8 / 赋能 9。
 - 网络协议版本 **9**；中英语言键各 **356** 条且一一对应。
-- 两树（Fabric `1.3.8` / Forge `1.3.8-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
-- 本文档以 **1.3.8 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。
+- 两树（Fabric `1.3.9` / Forge `1.3.9-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
+- 本文档以 **1.3.9 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。

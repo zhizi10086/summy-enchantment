@@ -125,6 +125,10 @@ dependencies {
     // 编译类路径上，否则注解处理器会直接报 "Mixin target ... could not be found"。
     // 运行期完全可选，没装 SR 时整份兼容配置被 SummyReliquaryMixinPlugin 跳过。
     compileOnly files('libs/summy-reliquary-1.8.5-forge.jar')
+
+    // KubeJS：只用于编译可选插件；运行期由玩家自行安装，绝不打进 SE 产物。
+    // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
+    compileOnly files('libs/kubejs-forge-2001.6.5-build.16.jar')
 }
 
 // ===== 开发期专用：把矛模组的生产 jar 反转成 dev 映射，用于兼容性冒烟 =====

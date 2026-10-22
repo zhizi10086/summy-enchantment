@@ -40,6 +40,7 @@
     "fabric-api": "*"
   },
   "recommends": {
-    "modmenu": ">=7.0.0"
+    "modmenu": ">=7.0.0",
+    "kubejs": ">=2001.6.5-build.16"
   }
 }

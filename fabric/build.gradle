@@ -41,6 +41,10 @@ dependencies {
     // Summy Reliquary：它只产出 Forge 版 jar，这里只用于让注解处理器能解析兼容 Mixin 的
     // @Mixin(targets = ...)；不进产物、也不参与 Loom 重映射，运行期由 Kilt/Connector 提供真实类。
     compileOnly files('libs/summy-reliquary-1.8.5-forge.jar')
+
+    // KubeJS：只用于编译可选插件；运行期由玩家自行安装，不 include、不打包。
+    // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
+    modCompileOnly files('libs/kubejs-fabric-2001.6.5-build.16.jar')
 }
 
 processResources {
