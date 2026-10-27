@@ -3,6 +3,7 @@ package com.summy.enchantment.mixin;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.EnchantmentEffects;
+import com.summy.enchantment.compat.ExternalEnchantmentCompat;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
@@ -194,8 +195,10 @@ public abstract class LivingEntityMixin {
 			int repaired = EnchantmentEffects.repairWithLifeMending(self, mendingFuel);
 			if (repaired > 0) {
 				if (SummyEnchantmentConfig.get().debugLogs) {
-					SummyEnchantment.LOGGER.info("[SE] 生命修补：治疗 {} 被用于修复 {} 点耐久（本次不累积生命护盾）",
-							healed > 0.0F ? healed : amount, repaired);
+					SummyEnchantment.LOGGER.info(
+							"[SE] 生命修补：治疗 {} 被用于修复 {} 点耐久（本次不累积生命护盾，Apotheosis 生命修补={}，SE 优先）",
+							healed > 0.0F ? healed : amount, repaired,
+							ExternalEnchantmentCompat.hasApotheosisLifeMending(self));
 				}
 				ci.cancel();
 				return;

@@ -9,8 +9,8 @@ Forge 用 Mojang 官方映射，无法共享同一份源码。
 
 | 目录 | 平台 | 版本 | 说明 |
 | --- | --- | --- | --- |
-| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.3.8` | 原始版本 |
-| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.3.8-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
+| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.3.10` | 原始版本 |
+| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.3.10-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
 
 ## 构建
 
@@ -21,7 +21,7 @@ Forge 用 Mojang 官方映射，无法共享同一份源码。
 ```bash
 cd fabric
 ./gradlew build
-# 产物：build/libs/summy-enchantment-1.3.8.jar
+# 产物：build/libs/summy-enchantment-1.3.10.jar
 ```
 
 ### Forge
@@ -29,7 +29,7 @@ cd fabric
 ```bash
 cd forge
 ./gradlew build
-# 产物会复制到仓库根目录的 JAR/summy-enchantment-forge/summy-enchantment-1.3.8-forge.jar
+# 产物会复制到仓库根目录的 JAR/summy-enchantment-forge/summy-enchantment-1.3.10-forge.jar
 ```
 
 Forge 工程自带两个构建期保障（`gradlew build` 自动执行）：
@@ -48,4 +48,6 @@ cd forge
 
 ## 许可
 
-MIT（见 [LICENSE](forge/LICENSE)）。
+MIT（见 [LICENSE](LICENSE)）。
+
+兼容策略与独立实现记录见 [docs/compatibility.md](docs/compatibility.md)。

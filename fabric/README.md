@@ -4,6 +4,8 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
 >
+> 🧩 **Celestial / Apotheosis / Majrusz 兼容规则与独立实现记录见 [docs/compatibility.md](../docs/compatibility.md)**
+>
 > 🔌 **KubeJS 基础 API（方法、示例、边界）见 [docs/kubejs.md](../docs/kubejs.md)**
 
 ## 环境
@@ -16,6 +18,14 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Fabric API | 0.92.7+1.20.1 |
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
+
+## 1.3.10 外部附魔兼容与许可证修复
+
+- 生命护盾检测到 Celestial `celestial_enchantments:life_shield` 时主动退让：停止累积并撤回 SE 自己剩余的份额；移除对方附魔后自动恢复。
+- 死神祝福检测到同一实体主手带 Majrusz `majruszsenchantments:death_wish` 时，对应造成侧或受伤侧退让为中性 `1.0`，避免相同公式二次乘算。
+- 生命修补维持 SE 严格优先：SE 可修时继续吞掉整次治疗；SE 无可修装备时 Apotheosis `apotheosis:life_mending` 与 Curios 修理照常工作。
+- 兼容策略只读取公开注册 ID，不建立编译依赖；启动时各打印一次实际优先级。最终 Fabric / Forge JAR 均包含 MIT 许可证正文。
+- 配置、协议、附魔与公开方法签名均不变化；产物：`summy-enchantment-1.3.10.jar`（1.3.9 保留）。
 
 ## 1.3.9 KubeJS 基础 API（契约不变）
 
@@ -316,7 +326,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.3.9.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.3.10.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
 >

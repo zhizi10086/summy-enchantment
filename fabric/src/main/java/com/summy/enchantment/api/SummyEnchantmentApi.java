@@ -48,13 +48,14 @@ public final class SummyEnchantmentApi {
 	}
 
 	public static float lifeShieldCap(LivingEntity entity) {
+		// 兼容退让期间有效上限为 0，避免脚本绕过 Celestial 优先规则。
 		return EnchantmentEffects.lifeShieldCap(entity);
 	}
 
 	/**
 	 * 直接增加护盾点数（不是治疗量），仅服务端生效。
 	 *
-	 * @return 实际增加量；无生命护盾胸甲、开关关闭、客户端或 amount 非法时返回 0
+	 * @return 实际增加量；无生命护盾胸甲、Celestial 同功能附魔存在、开关关闭、客户端或 amount 非法时返回 0
 	 */
 	public static float addLifeShield(LivingEntity entity, float amount) {
 		return EnchantmentEffects.addLifeShield(entity, amount);

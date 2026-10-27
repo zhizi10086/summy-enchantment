@@ -1,11 +1,13 @@
 # Summy Enchantment
 
-本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.3.9）一致；
+本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.3.10）一致；
 两份源码因 Yarn 与 Mojang 官方映射不同而独立维护。
 
 Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
+>
+> 🧩 **Celestial / Apotheosis / Majrusz 兼容规则与独立实现记录见 [docs/compatibility.md](../docs/compatibility.md)**
 >
 > 🔌 **KubeJS 基础 API（方法、示例、边界）见 [docs/kubejs.md](../docs/kubejs.md)**
 
@@ -17,7 +19,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 | 构建 | ForgeGradle 6 + MixinGradle 0.7.38 + MixinExtras 0.5.5（jar-in-jar）+ 官方映射 |
 | JDK | 17（`gradle.properties` / 全局 `~/.gradle/gradle.properties` 指定） |
 | 构建命令 | `gradlew build` |
-| 产物 | `JAR/summy-enchantment-forge/summy-enchantment-1.3.9-forge.jar` |
+| 产物 | `JAR/summy-enchantment-forge/summy-enchantment-1.3.10-forge.jar` |
 
 构建相关的三个本地化处理（都在 `build.gradle` 内，注释有说明）：
 
@@ -38,6 +40,15 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
    字符串都能在 refmap 里查到映射。任何一条失败都会直接中断构建。
 5. **KubeJS 可选编译依赖**：`libs/kubejs-forge-2001.6.5-build.16.jar` 只用于编译插件，不进入发布 jar；
    未安装 KubeJS 时 `kubejs.plugins.txt` 不会被读取，SE 行为与旧版一致。
+
+### 1.3.10-forge 外部附魔兼容与许可证修复
+
+- 生命护盾检测到 Celestial `celestial_enchantments:life_shield` 时主动退让：停止累积并撤回 SE 自己剩余的份额；移除对方附魔后自动恢复。
+- 死神祝福检测到同一实体主手带 Majrusz `majruszsenchantments:death_wish` 时，对应造成侧或受伤侧退让为中性 `1.0`，避免相同公式二次乘算。
+- 生命修补维持 SE 严格优先：SE 可修时继续吞掉整次治疗；SE 无可修装备时 Apotheosis `apotheosis:life_mending` 与 Curios 修理照常工作。
+- 兼容策略只读取公开注册 ID，不建立编译依赖；启动时各打印一次实际优先级。
+- Forge 最终 `reobfJarJar` 产物显式包含 `LICENSE_summy-enchantment`；配置、协议、附魔与公开方法签名均不变化。
+- 产物：`summy-enchantment-1.3.10-forge.jar`（1.3.9 保留）。
 
 ### 1.3.9 KubeJS 基础 API（契约不变）
 

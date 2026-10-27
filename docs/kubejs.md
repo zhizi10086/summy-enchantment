@@ -1,6 +1,6 @@
 # Summy Enchantment KubeJS 基础 API
 
-> 适用版本：1.3.9（Fabric 与 Forge 功能一致，仅映射名不同）。
+> 适用版本：1.3.10（Fabric 与 Forge 功能一致，仅映射名不同）。
 > KubeJS 是**可选依赖**；未安装时 Summy Enchantment 行为不变，也不会加载任何 KubeJS 类。
 
 ## 安装与发现
@@ -52,6 +52,7 @@ console.info(`嗜血预览：${preview}`)
 
 - `addLifeShield` 的 `amount` 是**护盾点数**，不是治疗量；需要走正常“治疗 → 生命护盾”链路时使用 `applyLifesteal` 或原版 `player.heal`。
 - `addLifeShield` 只在服务端生效，要求胸甲带生命护盾且 `enable_life_shield` 打开；客户端调用返回 0。
+- 胸甲同时带 Celestial `celestial_enchantments:life_shield` 时，SE 生命护盾主动退让：`lifeShieldCap` 与 `addLifeShield` 返回 0，`addLifeShield` 不会写入吸收池。
 - `applyLifesteal` 只用于**尚未经过 SE 近战 / 三叉戟 / SR 管线**的自定义伤害。正常命中再调用会重复结算。
 - `applyLifesteal` 返回计算出的治疗量，不等于最终生命值增量；生命修补可能整段消耗该治疗。
 - 本版本不新增 SE 专属 KubeJS 事件、自定义物品兼容注册表、自定义附魔行为 Hook 或配置读写 API。

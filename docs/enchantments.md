@@ -1,6 +1,6 @@
 # Summy Enchantment 全附魔总表
 
-> **适用版本**：1.3.9（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
+> **适用版本**：1.3.10（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
 > **数值口径**：文中数值都是**默认值**，实际以配置页或 `config/summy-enchantment.json` 为准；配置键后的括号里写默认值。
 > **命名空间**：本模组所有附魔 id 都是 `summy_enchantment:<id>`；语言键为 `enchantment.summy_enchantment.<id>`。
 > 相关专题（铁砧、力量Plus、伤害管线与限伤、粒子与提示、兼容性）见文末「机制附录」。
@@ -160,7 +160,7 @@
 - **获取方式**：附魔台 / 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_life_shield`（开）、`life_shield_percent_per_level`（0.20）（均服务端作用域）。
-- **边界与实现位置**：护盾值存在**自定义玩家属性** `summy_enchantment:life_shield`（与附魔 id 同名但属于不同注册表），**不再占用效果栏、没有图标**，黄心由原版吸收显示，与其它来源的吸收**相加**（不抢其它模组的护盾）；满血时不累积；死亡重生不残留。**登录 / 非死亡重生 / 首次 tick 会对账**：若属性护盾大于吸收池，把差额补回吸收池，避免“属性有盾、实际吸收没有”的脱节；生命修补仍在生命护盾之前结算。实现：`LivingEntityMixin`（heal / tick）+ `SummyEnchantmentEvents`（登录/重生对账）+ `EnchantmentEffects.lifeShield*`。
+- **边界与实现位置**：护盾值存在**自定义玩家属性** `summy_enchantment:life_shield`（与附魔 id 同名但属于不同注册表），**不再占用效果栏、没有图标**，黄心由原版吸收显示，与其它来源的吸收**相加**（不抢其它模组的护盾）；满血时不累积；死亡重生不残留。**登录 / 非死亡重生 / 首次 tick 会对账**：若属性护盾大于吸收池，把差额补回吸收池，避免“属性有盾、实际吸收没有”的脱节；生命修补仍在生命护盾之前结算。**同胸甲检测到 Celestial `life_shield` 时 SE 主动退让**：停止累积、`lifeShieldCap` 与 `addLifeShield` 返回 0，并只撤回 SE 自己剩余的份额；移除对方附魔后自动恢复。实现：`LivingEntityMixin`（heal / tick）+ `SummyEnchantmentEvents`（登录/重生对账）+ `EnchantmentEffects.lifeShield*` + `ExternalEnchantmentCompat`。
 
 ### 生命提升（`health_boost`）
 
@@ -214,7 +214,7 @@
 - **获取方式**：附魔台 / 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_deaths_blessing`（开）、`deaths_blessing_damage_taken_bonus`（0.20）、`deaths_blessing_damage_bonus_per_percent`（0.01）、`deaths_blessing_resist_per_percent`（0.005）（均服务端作用域）。
-- **边界与实现位置**：**受伤侧对全类型生效**（没有伤害类型过滤）；**造成侧只算直接来源**（攻击者本人或他射出的投射物；TNT、火焰、爆炸等间接伤害不吃，自伤也不吃造成侧），并且**跳过**定值真伤——标签 `#summy_enchantment:no_deaths_blessing_outgoing` 默认含 SR 的 11 个与 SRA 的 3 个伤害类型；SR「强力斩击」整条链路（含它的魔剑/斩杀）同样不吃造成侧。实现：`LivingEntityMixin`（`hurt` 的 `@ModifyVariable(argsOnly = true)`）+ `EnchantmentEffects.deathsBlessingIncoming/Outgoing`。
+- **边界与实现位置**：**受伤侧对全类型生效**（没有伤害类型过滤）；**造成侧只算直接来源**（攻击者本人或他射出的投射物；TNT、火焰、爆炸等间接伤害不吃，自伤也不吃造成侧），并且**跳过**定值真伤——标签 `#summy_enchantment:no_deaths_blessing_outgoing` 默认含 SR 的 11 个与 SRA 的 3 个伤害类型；SR「强力斩击」整条链路（含它的魔剑/斩杀）同样不吃造成侧。**同一实体带有 Majrusz `death_wish` 时，SE 的对应侧主动退让**，避免完全相同公式二次乘算。实现：`LivingEntityMixin`（`hurt` 的 `@ModifyVariable(argsOnly = true)`）+ `EnchantmentEffects.deathsBlessingIncoming/Outgoing` + `ExternalEnchantmentCompat`。
 
 ### 复仇（`revenge`）
 
@@ -241,7 +241,7 @@
 - **获取方式**：**可以出现在附魔台**（附魔台不排除诅咒）/ 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_life_mending`（开）、`life_mending_durability_per_level`（1.0）（均服务端作用域）。
-- **边界与实现位置**：**满血时同样生效**（用本次治疗量换算耐久）；装备满耐久/未损坏时跳过，换算后不足 1 点也不修，这两种情况会正常回血；与恶咒联动不变。实现：`LivingEntityMixin#heal` + `ItemStackMixin`（耐久入口）。
+- **边界与实现位置**：**满血时同样生效**（用本次治疗量换算耐久）；装备满耐久/未损坏时跳过，换算后不足 1 点也不修，这两种情况会正常回血；与恶咒联动不变。**Apotheosis `life_mending` 同时存在时，SE 严格优先**：SE 有可修装备时仍吞掉整次治疗并阻止后续 `LivingHealEvent`；SE 无可修装备时 Apotheosis 及 Curios 修理照常生效。实现：`LivingEntityMixin#heal` + `ItemStackMixin`（耐久入口）。
 
 ### 速食（`quick_eat`）
 
@@ -389,6 +389,7 @@
 
 ### 兼容性
 
+- **Celestial / Apotheosis / Majrusz**：详细规则、实现边界与独立开发时间线见 [compatibility.md](compatibility.md)。生命护盾与死神祝福由 SE 主动退让；生命修补保持 SE 严格优先。
 - **Summy Reliquary（SR）**：把「遁入暗影」的两段斩击与投掷长矛命中接回 ER 的近战管线——基础斩击与投掷命中吃全部增伤与命中后效果；**强力斩击**按 SR 原设计不吃增伤乘区（含死神祝福·造成侧，1.3.7 起由"造成侧抑制窗口"显式保证），但仍吃魔剑/嗜血/粒子与斩杀、不掷出其不意；打开"调试日志"（`debug_logs`）可打印逐次结算日志。未安装 SR 时整份兼容被跳过。
 
 ### 调试日志（`debug_logs`，核心机制组，默认关）
@@ -424,5 +425,5 @@
 
 - 附魔 **32** 个；配置 **99** 项，按功能域分成 **11 组**：核心机制 8 / 原版改动 5 / 武器附魔 12 / 弓弩与箭矢 12 / 生存与治疗 12 / 战斗状态 7 / 防御与耐久 7 / 食物与采集 7 / 粒子与特效 12 / 箭矢特性 8 / 赋能 9。
 - 网络协议版本 **9**；中英语言键各 **356** 条且一一对应。
-- 两树（Fabric `1.3.9` / Forge `1.3.9-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
-- 本文档以 **1.3.9 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。
+- 两树（Fabric `1.3.10` / Forge `1.3.10-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
+- 本文档以 **1.3.10 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。

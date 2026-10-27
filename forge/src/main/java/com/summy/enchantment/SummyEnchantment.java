@@ -1,6 +1,7 @@
 package com.summy.enchantment;
 
 import com.summy.enchantment.command.SummyEnchantmentCommand;
+import com.summy.enchantment.compat.ExternalEnchantmentCompat;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.event.SummyEnchantmentEvents;
 import com.summy.enchantment.network.ConfigSync;
@@ -52,6 +53,7 @@ public class SummyEnchantment {
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
 				() -> () -> com.summy.enchantment.client.SummyEnchantmentClient.init());
 
+		ExternalEnchantmentCompat.logCompatibilityPolicies();
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		LOGGER.info("[Summy Enchantment] 已加载（Forge 版）：铁砧经验点数={}，锋利Plus={}（{} / 级），"
 						+ "力量Plus={}（{} / 级），保护5级={}",

@@ -94,6 +94,14 @@ jarJar {
     enable()
 }
 
+// reobfJarJar 会从该任务重建最终 JAR；这里必须单独加入许可证，
+// 否则普通 jar 里虽有 LICENSE，实际发布产物仍会遗漏 MIT 通知正文。
+tasks.named('jarJar') {
+    from('LICENSE') {
+        rename { "${it}_${project.base.archivesName.get()}" }
+    }
+}
+
 dependencies {
     minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
 

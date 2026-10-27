@@ -1,6 +1,7 @@
 package com.summy.enchantment.combat;
 
 import com.summy.enchantment.SummyEnchantment;
+import com.summy.enchantment.compat.ExternalEnchantmentCompat;
 import com.summy.enchantment.config.DodgeSoundStyle;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.network.ParticlePreferences;
@@ -161,6 +162,7 @@ public final class EnchantmentEffects {
 	private static boolean hasDeathsBlessing(LivingEntity entity) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		return config.enableDeathsBlessing && ModEnchantments.DEATHS_BLESSING != null
+				&& !ExternalEnchantmentCompat.hasMajruszDeathWish(entity)
 				&& chestLevel(entity, ModEnchantments.DEATHS_BLESSING) > 0;
 	}
 
@@ -895,10 +897,17 @@ public final class EnchantmentEffects {
 
 	/** 当前胸甲等级对应的生命护盾上限；没有该附魔时返回 0 */
 	public static float lifeShieldCap(LivingEntity entity) {
-		int level = entity == null || ModEnchantments.LIFE_SHIELD == null
-				? 0
-				: chestLevel(entity, ModEnchantments.LIFE_SHIELD);
+		int level = effectiveLifeShieldLevel(entity);
 		return level <= 0 ? 0.0F : lifeShieldCap(entity, level);
+	}
+
+	/** 有效的 SE 生命护盾等级；Celestial 同功能附魔存在时主动退让为 0。 */
+	private static int effectiveLifeShieldLevel(LivingEntity entity) {
+		if (entity == null || entity.age <= 0 || ModEnchantments.LIFE_SHIELD == null
+				|| ExternalEnchantmentCompat.hasCelestialLifeShield(entity)) {
+			return 0;
+		}
+		return chestLevel(entity, ModEnchantments.LIFE_SHIELD);
 	}
 
 	/** 护盾值与吸收值统一量化到半颗心（0.5）精度，避免 HUD 多画半颗心 */
@@ -937,7 +946,7 @@ public final class EnchantmentEffects {
 		if (entity.getWorld().isClient) {
 			return;
 		}
-		int level = chestLevel(entity, ModEnchantments.LIFE_SHIELD);
+		int level = effectiveLifeShieldLevel(entity);
 		if (level <= 0) {
 			return;
 		}
@@ -965,7 +974,7 @@ public final class EnchantmentEffects {
 			return 0.0F;
 		}
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
-		int level = ModEnchantments.LIFE_SHIELD == null ? 0 : chestLevel(entity, ModEnchantments.LIFE_SHIELD);
+		int level = effectiveLifeShieldLevel(entity);
 		if (!config.enableLifeShield || level <= 0 || lifeShieldInstance(entity) == null) {
 			return 0.0F;
 		}
@@ -1007,6 +1016,15 @@ public final class EnchantmentEffects {
 	public static void tickLifeShield(LivingEntity entity) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		float shieldValue = lifeShield(entity);
+		// Celestial 同功能附魔优先。只撤回 SE 记账中的剩余份额，随后停止累积与对账。
+		if (ExternalEnchantmentCompat.hasCelestialLifeShield(entity)) {
+			if (shieldValue > 0.0F) {
+				clearLifeShield(entity);
+			} else {
+				SHIELD_TRACK.remove(entity);
+			}
+			return;
+		}
 		int level = ModEnchantments.LIFE_SHIELD == null ? 0 : chestLevel(entity, ModEnchantments.LIFE_SHIELD);
 		if (shieldValue <= 0.0F && level <= 0) {
 			SHIELD_TRACK.remove(entity);
@@ -1058,6 +1076,10 @@ public final class EnchantmentEffects {
 	 */
 	public static void restoreLifeShieldToPool(LivingEntity entity) {
 		if (entity == null || entity.getWorld().isClient) {
+			return;
+		}
+		if (ExternalEnchantmentCompat.hasCelestialLifeShield(entity)) {
+			clearLifeShield(entity);
 			return;
 		}
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
