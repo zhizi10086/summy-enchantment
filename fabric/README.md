@@ -26,6 +26,8 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 - 生命修补维持 SE 严格优先：SE 可修时继续吞掉整次治疗；SE 无可修装备时 Apotheosis `apotheosis:life_mending` 与 Curios 修理照常工作。
 - 兼容策略只读取公开注册 ID，不建立编译依赖；启动时各打印一次实际优先级。最终 Fabric / Forge JAR 均包含 MIT 许可证正文。
 - 配置、协议、附魔与公开方法签名均不变化；产物：`summy-enchantment-1.3.10.jar`（1.3.9 保留）。
+- 真实客户端自检：`gradlew runClient -Pdevcheck -PexternalModsDir="<官方模组 JAR 目录>"`。自检使用专用世界 `SeDevCheckWorld`，完成后自动退出；正式 JAR 与 sources JAR 均排除 `com/summy/enchantment/devcheck/**`。
+- Fabric 的 Majrusz Library 在开发态自行扫描工作目录下的物理 JAR；构建脚本会把官方 Majrusz / Library 两枚 JAR 复制到 `run/libs` 供其扫描，类本身仍由 Loom 的重映射运行期副本加载。
 
 ## 1.3.9 KubeJS 基础 API（契约不变）
 

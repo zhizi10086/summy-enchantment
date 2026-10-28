@@ -38,3 +38,6 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 2026-10-27：Fabric 与 Forge 两树 `gradlew build` 均通过；Forge `verifyMixinTargets` 通过。
 - 无外部附魔模组的 Forge 专用服务端启动到 `Done`，生命护盾属性自检通过。
 - 外部模组的组合验收应在正式 Forge 或 Kilt 实例进行；不要把未经 deobf 的生产 Jar 直接放入 ForgeGradle dev `run/mods`，否则会先被对方 Mixin 的开发映射问题拦截。
+- 2026-10-28：Forge 真实客户端同时装载 Celestial Enchantments 1.3.7、Apotheosis 7.4.8、Majrusz's Enchantments 1.10.8，`[SE-DEVCHECK]` 共 12 项、失败 0 项；覆盖 SE/Celestial 生命护盾退让与恢复、SE/Apotheosis 生命修补优先级及回退、SE/Majrusz 死神祝福造成侧与受伤侧单层结算。
+- 2026-10-28：Fabric 原生真实客户端装载 Majrusz's Enchantments Fabric 1.10.8 + Majrusz Library Fabric 7.0.8，`[SE-DEVCHECK]` 共 4 项、失败 0 项；造成侧基础 10 点结算为 15 点、受伤侧结算为 9.5 点，确认 SE 退让后只剩 Majrusz 一层。
+- 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。

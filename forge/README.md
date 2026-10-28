@@ -49,6 +49,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 - 兼容策略只读取公开注册 ID，不建立编译依赖；启动时各打印一次实际优先级。
 - Forge 最终 `reobfJarJar` 产物显式包含 `LICENSE_summy-enchantment`；配置、协议、附魔与公开方法签名均不变化。
 - 产物：`summy-enchantment-1.3.10-forge.jar`（1.3.9 保留）。
+- 真实客户端自检：`gradlew runClient -Pdevcheck -PexternalModsDir="<官方模组 JAR 目录>"`。脚本会把官方 Forge JAR 去混淆后投放到 `run/mods`，在专用世界 `SeDevCheckWorld` 中执行并自动退出；正式产物排除 `com/summy/enchantment/devcheck/**`。
 
 ### 1.3.9 KubeJS 基础 API（契约不变）
 

@@ -45,7 +45,12 @@ repositories {
     maven { name = 'CreeperHost'; url = 'https://maven.creeperhost.net/' }
     maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
     // 供 fg.deobf 解析矛模组 jar（flatDir 是 ForgeGradle 要求的写法）
-    flatDir { dirs 'libs' }
+    flatDir {
+        dirs 'libs'
+        if (project.hasProperty('externalModsDir')) {
+            dirs file(project.property('externalModsDir'))
+        }
+    }
 }
 
 // JarJar 只接受 Maven 范围格式（写裸版本 "0.5.5" 会报 invalid version specification），
@@ -69,6 +74,10 @@ minecraft {
             // 让 Mixin 把依赖模组（矛）自带的 SRG refmap 重映射成开发映射
             property 'mixin.env.remapRefMap', 'true'
             property 'mixin.env.refMapRemappingFile', "${buildDir}/patchedSrg/output.srg"
+            if (project.hasProperty('devcheck')) {
+                property 'summy_enchantment.devcheck', 'true'
+                args '--quickPlaySingleplayer', 'SeDevCheckWorld'
+            }
         }
         server {
             workingDirectory project.file('run')
@@ -97,6 +106,9 @@ jarJar {
 // reobfJarJar 会从该任务重建最终 JAR；这里必须单独加入许可证，
 // 否则普通 jar 里虽有 LICENSE，实际发布产物仍会遗漏 MIT 通知正文。
 tasks.named('jarJar') {
+    if (!project.hasProperty('devcheck')) {
+        exclude 'com/summy/enchantment/devcheck/**'
+    }
     from('LICENSE') {
         rename { "${it}_${project.base.archivesName.get()}" }
     }
@@ -144,15 +156,38 @@ dependencies {
 // 因此这里额外生成一份 deobf 版本给 runServer/runClient 用（不进产物，不影响 build）。
 configurations {
     spearDev
+    externalCompatDev
 }
 
 dependencies {
     spearDev fg.deobf('spear-backport-forge:spear-backport-forge:1.4.7-1.20.1')
+    if (project.hasProperty('externalModsDir')) {
+        // 文件名必须遵循 <name>-<version>.jar；测试目录中的官方包会先规范化文件名。
+        externalCompatDev fg.deobf('celestial_enchantments:celestial_enchantments:1.3.7')
+        externalCompatDev fg.deobf('celestial_core:celestial_core:1.6.1')
+        externalCompatDev fg.deobf('l2library:l2library:2.5.3')
+        externalCompatDev fg.deobf('apotheosis:Apotheosis:1.20.1-7.4.8')
+        externalCompatDev fg.deobf('placebo:Placebo:1.20.1-8.6.3')
+        externalCompatDev fg.deobf('attributeslib:ApothicAttributes:1.20.1-1.3.7')
+        externalCompatDev fg.deobf('majruszlibrary:majrusz-library-forge:1.20.1-7.0.8')
+        externalCompatDev fg.deobf('majruszsenchantments:majruszs-enchantments-forge:1.20.1-1.10.8')
+    }
 }
 
 tasks.register('copySpearDevJar', Copy) {
     from configurations.spearDev
     into layout.projectDirectory.dir('run/mods')
+}
+
+tasks.register('copyExternalCompatDevJars', Copy) {
+    from configurations.externalCompatDev
+    into layout.projectDirectory.dir('run/mods')
+}
+
+tasks.matching {
+    it.name == 'runClient' && project.hasProperty('devcheck') && project.hasProperty('externalModsDir')
+}.configureEach {
+    dependsOn 'copyExternalCompatDevJars'
 }
 
 // Summy Reliquary 同样只有生产 jar（SRG 名），dev 环境直接读会因继承链对不上而失败，
@@ -520,6 +555,9 @@ jar {
     }
     from('LICENSE') {
         rename { "${it}_${project.base.archivesName.get()}" }
+    }
+    if (!project.hasProperty('devcheck')) {
+        exclude 'com/summy/enchantment/devcheck/**'
     }
 }
 

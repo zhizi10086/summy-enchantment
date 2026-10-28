@@ -45,6 +45,16 @@ dependencies {
     // KubeJS：只用于编译可选插件；运行期由玩家自行安装，不 include、不打包。
     // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
     modCompileOnly files('libs/kubejs-fabric-2001.6.5-build.16.jar')
+
+    // 真实客户端自检用的官方 Majrusz Fabric 包只在显式指定测试目录时加入运行期；
+    // 不参与编译、不打包进正式 jar，也不影响未启用 devcheck 的普通开发客户端。
+    if (project.hasProperty('devcheck') && project.hasProperty('externalModsDir')) {
+        def externalRoot = file(project.property('externalModsDir'))
+        modRuntimeOnly files(
+                new File(externalRoot, 'majrusz-library-fabric-1.20.1-7.0.8.jar'),
+                new File(externalRoot, 'majruszs-enchantments-fabric-1.20.1-1.10.8.jar')
+        )
+    }
 }
 
 processResources {
@@ -71,8 +81,18 @@ java {
 }
 
 jar {
+    // 正式发布不含开发自检；显式 -Pdevcheck 构建时才保留，便于复现实机测试。
+    if (!project.hasProperty('devcheck')) {
+        exclude 'com/summy/enchantment/devcheck/**'
+    }
     from('LICENSE') {
         rename { "${it}_${project.base.archivesName.get()}" }
+    }
+}
+
+tasks.named('sourcesJar') {
+    if (!project.hasProperty('devcheck')) {
+        exclude 'com/summy/enchantment/devcheck/**'
     }
 }
 
@@ -85,5 +105,28 @@ tasks.named('build') {
             from tasks.named('remapJar').get().archiveFile
             into releaseDir
         }
+    }
+}
+
+// 自检只由显式参数打开；专用世界由测试脚本准备，脚本结束会自行退出客户端。
+tasks.named('runClient') {
+    if (project.hasProperty('devcheck')) {
+        jvmArgs '-Dsummy_enchantment.devcheck=true'
+        args '--quickPlaySingleplayer', 'SeDevCheckWorld'
+        if (project.hasProperty('externalModsDir')) {
+            dependsOn 'copyExternalCompatScanJars'
+        }
+    }
+}
+
+// Majrusz Library 的开发态 ClassFinder 只扫描 run/libs 与 run/mods。
+// Loom 负责把类本身重映射并加入类路径，这里保留官方原包供其扫描。
+if (project.hasProperty('devcheck') && project.hasProperty('externalModsDir')) {
+    tasks.register('copyExternalCompatScanJars', Copy) {
+        from(file(project.property('externalModsDir'))) {
+            include 'majrusz-library-fabric-1.20.1-7.0.8.jar'
+            include 'majruszs-enchantments-fabric-1.20.1-1.10.8.jar'
+        }
+        into layout.projectDirectory.dir('run/libs')
     }
 }

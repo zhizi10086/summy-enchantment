@@ -63,6 +63,16 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 
 	@Override
 	public void onInitializeClient() {
+		// 开发自检包只在 -Pdevcheck 时由反射加载，正式 jar 不含该包且不会触发类解析。
+		if (Boolean.getBoolean("summy_enchantment.devcheck")) {
+			try {
+				Class.forName("com.summy.enchantment.devcheck.EnchantmentFabricDevCheck")
+						.getMethod("register")
+						.invoke(null);
+			} catch (ReflectiveOperationException exception) {
+				throw new IllegalStateException("无法启动 Fabric 客户端自检", exception);
+			}
+		}
 		// 本能释放：客户端也做同样的检测，保证拉弓动画与使用状态即时结束/重开
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
 			if (client.player != null) {
