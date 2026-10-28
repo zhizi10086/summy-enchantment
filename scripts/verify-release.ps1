@@ -50,9 +50,34 @@ function Get-ZipEntryText([string]$JarPath, [string]$EntryName) {
     }
 }
 
+function Get-ZipEntrySha256([string]$JarPath, [string]$EntryName) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $zip = [System.IO.Compression.ZipFile]::OpenRead($JarPath)
+    try {
+        $entry = $zip.GetEntry($EntryName)
+        if ($null -eq $entry) {
+            return $null
+        }
+        $stream = $entry.Open()
+        try {
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+                return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '')
+            } finally {
+                $sha.Dispose()
+            }
+        } finally {
+            $stream.Dispose()
+        }
+    } finally {
+        $zip.Dispose()
+    }
+}
+
 Check-Release 'Fabric JAR exists' (Test-Path -LiteralPath $fabricJar) $fabricJar
 Check-Release 'Forge JAR exists' (Test-Path -LiteralPath $forgeJar) $forgeJar
 
+$expectedIconSha256 = '4B1FC2FE52542FB50D343B165CB07872D3EAEB9D57F79500AD253381186C212F'
 $utf8 = [System.Text.Encoding]::UTF8
 $fabricProperties = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'fabric\gradle.properties'), $utf8)
 $forgeProperties = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'forge\gradle.properties'), $utf8)
@@ -85,9 +110,15 @@ if ($failures.Count -eq 0) {
             Check-Release 'Fabric mod id' ($json.id -eq 'summy_enchantment') $json.id
             Check-Release 'Fabric version' ($json.version -eq '1.3.10') $json.version
             Check-Release 'Fabric license' ($json.license -eq 'MIT') $json.license
+            Check-Release 'Fabric icon metadata' ($json.icon -eq 'assets/summy_enchantment/icon.png') $json.icon
+            $iconSha = Get-ZipEntrySha256 $pair.Path 'assets/summy_enchantment/icon.png'
+            Check-Release 'Fabric embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
         } else {
             Check-Release 'Forge version' ($metadataText -match 'version\s*=\s*"1\.3\.10-forge"') '1.3.10-forge'
             Check-Release 'Forge license' ($metadataText -match 'license\s*=\s*"MIT"') 'MIT'
+            Check-Release 'Forge icon metadata' ($metadataText -match 'logoFile\s*=\s*"icon\.png"') 'icon.png'
+            $iconSha = Get-ZipEntrySha256 $pair.Path 'icon.png'
+            Check-Release 'Forge embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
             $mixinExtras = @($entries | Where-Object { $_ -like 'META-INF/jarjar/mixinextras*' }).Count
             Check-Release 'Forge nested MixinExtras' ($mixinExtras -ge 1) "entries=$mixinExtras"
         }

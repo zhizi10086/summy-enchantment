@@ -7,6 +7,7 @@ displayURL = "https://www.mcmod.cn/class/23213.html"
 modId = "summy_enchantment"
 version = "${version}"
 displayName = "Summy Enchantment"
+logoFile = "icon.png"
 authors = "Summy"
 description = '''
 重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔；兼容矛 Backported Spears 1.4.7 并修复其伤害翻倍（百科链接见链接区）。

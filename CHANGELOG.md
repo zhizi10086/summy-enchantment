@@ -19,6 +19,7 @@ Fabric 与 Forge 两份 README 的发布记录中。
 - Fabric 原生客户端验证 Majrusz Fabric 1.10.8 + Library 7.0.8：4 项、0 失败。
 - 两树构建通过，Forge `verifyMixinTargets` 的 29 个文件全绿。
 - Fabric / Forge 正式 JAR 均包含 MIT 许可证正文；Forge 嵌套 MixinExtras 包含自身许可证。
+- Fabric 与 Forge JAR 都内置最终版铁砧、附魔核心与双箭头图标，并在各自元数据中声明。
 
 ### 兼容边界
 
