@@ -1,5 +1,7 @@
 # Summy Enchantment
 
+[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.3.10 Release 说明](docs/releases/1.3.10.md) · [许可证](LICENSE)
+
 Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改为消耗经验点数，
 新增 32 个附魔（含锋利Plus）、11 组配置页（99 项）与可自定义的粒子特效；可选兼容矛
 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
