@@ -26,6 +26,10 @@ import org.jetbrains.annotations.Nullable;
  * 让我们要的伤害正好等于它最终的输出。
  */
 public final class SpearCompat {
+	/** 反解后的矛伤害参数，以及事件里应公开的攻击侧金额。 */
+	public record PierceAdjustment(float parameter, float attackAmount) {
+	}
+
 	private static final String MOD_ID = "spears";
 	private static final String PACKAGE_PREFIX = "com.notunanancyowen.spears.";
 	/** 已核对过公式、需要做伤害修正的版本；其它版本一律原样放行 */
@@ -68,11 +72,11 @@ public final class SpearCompat {
 	 * @param leftClick      true = 左键刺击（stab），false = 右键充能刺击
 	 * @return 反解后的参数，使矛模组算出的最终伤害等于我们期望的值
 	 */
-	public static float adjustPierceDamage(LivingEntity attacker, ItemStack spear, @Nullable Entity target,
+	public static PierceAdjustment adjustPierceDamage(LivingEntity attacker, ItemStack spear, @Nullable Entity target,
 			float originalDamage, boolean leftClick) {
 		// 只有玩家分支存在"基础伤害算两遍"的问题，其它生物原样放行
 		if (!(attacker instanceof PlayerEntity player) || !isActive() || originalDamage <= 0.0F) {
-			return originalDamage;
+			return new PierceAdjustment(originalDamage, originalDamage);
 		}
 
 		EntityGroup group = target instanceof LivingEntity living ? living.getGroup() : EntityGroup.DEFAULT;
@@ -95,15 +99,24 @@ public final class SpearCompat {
 		wanted *= multiplier;
 
 		// 反解：它最终算出的值 = 参数·factor + cd·附魔，令其等于 wanted
-		return Math.max(0.0F, (wanted - cooldown * enchant) / Math.max(factor, 1.0E-4F));
+		float parameter = Math.max(0.0F, (wanted - cooldown * enchant) / Math.max(factor, 1.0E-4F));
+		return new PierceAdjustment(parameter, wanted);
 	}
 
-	/** 命中后按本次实际伤害结算魔剑与嗜血（与近战共用同一套逻辑） */
-	public static void applyHitEnchantments(LivingEntity attacker, ItemStack spear, Entity target, float dealtDamage) {
-		if (!(attacker instanceof PlayerEntity) || !isActive()) {
+	/** 结算矛命中的魔剑、嗜血，并发送与近战同结构的只读事件。 */
+	public static void settleHit(LivingEntity attacker, ItemStack spear, Entity target,
+			float rawAmount, PierceAdjustment adjustment, boolean landed, String entry) {
+		if (!(attacker instanceof PlayerEntity player) || !isActive()) {
 			return;
 		}
-		EnchantmentEffects.applySpellblade(attacker, spear, target, dealtDamage);
-		EnchantmentEffects.applyLifesteal(attacker, spear, dealtDamage);
+		float magic = 0.0F;
+		float healed = 0.0F;
+		if (landed) {
+			magic = EnchantmentEffects.applySpellbladeReport(player, spear, target, adjustment.attackAmount());
+			healed = EnchantmentEffects.applyLifestealReport(player, spear, adjustment.attackAmount());
+		}
+		SummyEnchantmentScriptHooks.fireMeleeSettled(
+				entry, player, target, spear, null, rawAmount, adjustment.attackAmount(), landed, true,
+				magic, healed, 0.0F, 0.0F, false, false, false);
 	}
 }

@@ -42,11 +42,15 @@ public abstract class SpearItemCompatMixin {
 		// pierce 是接口方法，包装方法的第一个参数就是这个接收者；它同时也是攻击者本身
 		LivingEntity attacker = (LivingEntity) spearUser;
 		ItemStack spear = attacker.getItemBySlot(slot);
-		float adjusted = SpearCompat.adjustPierceDamage(attacker, spear, target, damage, true);
+		SpearCompat.PierceAdjustment adjustment = SpearCompat.adjustPierceDamage(
+				attacker, spear, target, damage, true);
 		// 接口调用：接收者也算一个参数，必须一起传回原方法
-		boolean hit = original.call(spearUser, slot, target, adjusted, dealDamage, knockback, dismount);
+		boolean hit = original.call(
+				spearUser, slot, target, adjustment.parameter(), dealDamage, knockback, dismount);
+		if (dealDamage) {
+			SpearCompat.settleHit(attacker, spear, target, damage, adjustment, hit, "spearStab");
+		}
 		if (hit && dealDamage) {
-			SpearCompat.applyHitEnchantments(attacker, spear, target, adjusted);
 			// 近战粒子：左键刺击与普通近战同一套档位（右键充能刺击不生成）
 			MeleeParticles.spawnOnHit(attacker, target);
 		}
@@ -74,10 +78,12 @@ public abstract class SpearItemCompatMixin {
 			boolean dealDamage, boolean knockback, boolean dismount, Operation<Boolean> original) {
 		LivingEntity user = (LivingEntity) spearUser;
 		ItemStack spear = user.getItemBySlot(slot);
-		float adjusted = SpearCompat.adjustPierceDamage(user, spear, target, damage, false);
-		boolean hit = original.call(spearUser, slot, target, adjusted, dealDamage, knockback, dismount);
-		if (hit && dealDamage) {
-			SpearCompat.applyHitEnchantments(user, spear, target, adjusted);
+		SpearCompat.PierceAdjustment adjustment = SpearCompat.adjustPierceDamage(
+				user, spear, target, damage, false);
+		boolean hit = original.call(
+				spearUser, slot, target, adjustment.parameter(), dealDamage, knockback, dismount);
+		if (dealDamage) {
+			SpearCompat.settleHit(user, spear, target, damage, adjustment, hit, "spearCharge");
 		}
 		return hit;
 	}

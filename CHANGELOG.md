@@ -3,6 +3,35 @@
 本文件从 1.3.10 起记录发布级变更。1.3.9 及更早版本的完整技术记录仍保留在
 Fabric 与 Forge 两份 README 的发布记录中。
 
+## 1.4.0
+
+### KubeJS API 与事件
+
+- 服务端保留原有九个方法，最终提供 43 个公开方法；新增 `enchantmentCanApplyTo`（物品类型）、`enchantmentCanEnchant`（物品类型 + 双向互斥）、配置元数据、接口版本和藏剑冷却读取。
+- 客户端绑定缩减为 24 个只读查询，不允许直接加载含服务端写方法的 API 类；启动脚本不再绑定世界相关 API。
+- 脚本类过滤器默认封锁 `com.summy.enchantment.` 全部内部类，仅服务端脚本精确放行公共 API，防止绕过绑定表访问战斗实现。
+- 新增七个服务端只读事件：`meleeSettled`、`lifeShieldChanged`、`deathEyeChanged`、`hiddenBladeConsumed`、`projectileSettled`、`electricArcSettled`、`electricArcFinished`。
+- `meleeSettled` 增加伤害源、攻击侧金额别名及主命中/出其不意分项；箭矢、三叉戟、矛和电刀均获得只读观测覆盖。
+- 投射物和电刀事件补齐 `attackAmount` 别名，事件武器统一为副本；KubeJS 声明范围精确限定为 `>=2001.6.5-build.16 <2001.6.6`。
+- 仓库纳入可复用 KubeJS 自检脚本与 `verifyKubeJsSelfTest` 自动断言任务，支持 `-PdevcheckMode=kubejs` 独立运行，并可通过 Gradle 参数切换 KubeJS/Rhino/Architectury 版本。
+- 自检支持通过 `-PdevcheckWorldDir` 恢复专用测试世界；缺少世界时立即报错，避免误报为客户端超时。
+- 新增 `THIRD_PARTY_NOTICES.md`，登记离线编译与自检依赖的来源、许可证和 SHA-256；这些 JAR 均不进入发布产物。
+- `clearLifeShield` 与 `applyLifesteal` 增加逻辑服务端保护。
+- `configBoolean` 增加配置类型校验，数值项不会再因值大于等于 0.5 被误报为布尔真。
+
+### 附魔调整
+
+- 破空之愿与本能释放增加双向互斥。
+- 附魔台、铁砧、随机组合和 `/enchant` 均不能给同一把弓新增第二项。
+- 通过 NBT 或数据包强行写入两项的旧物品保留原有双重效果，不自动清理。
+- 中英文附魔描述同步注明互斥，语言键数量不变。
+
+### 兼容边界
+
+- 附魔仍 32 个、配置仍 99 项 / 11 组、网络协议仍 9。
+- KubeJS 仍为可选依赖；未安装时不加载插件类。
+- 本版不提供脚本自定义附魔行为、可取消事件或配置写入。
+
 ## 1.3.10
 
 ### 外部附魔兼容

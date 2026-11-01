@@ -2,6 +2,7 @@ package com.summy.enchantment.mixin;
 
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.ArrowTraits;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.config.ArrowParticleStyle;
 import com.summy.enchantment.network.ParticlePreferences;
 import com.summy.enchantment.particle.ArrowParticleCarrier;
@@ -14,6 +15,7 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.data.TrackedData;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.world.World;
@@ -200,7 +202,8 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 			Operation<Boolean> original) {
 		PersistentProjectileEntity self = (PersistentProjectileEntity) (Object) this;
 		// 死亡之眼（1.3.7）：命中时先用"当前层数"放大本次伤害（穿透一箭多目标时每个目标各结算一次）
-		float adjusted = amount * ArrowTraits.deathEyeMultiplier(self);
+		float deathEyeMultiplier = ArrowTraits.deathEyeMultiplier(self);
+		float adjusted = amount * deathEyeMultiplier;
 		boolean hit = original.call(target, source, adjusted);
 		if (!hit && target instanceof LivingEntity living && EnchantmentEffects.isExtraHitArrow(self)) {
 			living.timeUntilRegen = 0;
@@ -208,7 +211,14 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 		}
 		if (hit && target instanceof LivingEntity) {
 			// 命中生物后才加层（先算伤害再加层），并清掉连续落空计数
-			ArrowTraits.recordHit(self);
+			ArrowTraits.recordHit(self, target);
+		}
+		if (!self.getWorld().isClient) {
+			LivingEntity attacker = source.getAttacker() instanceof LivingEntity living ? living : null;
+			SummyEnchantmentScriptHooks.fireProjectileSettled(
+					"arrow", attacker, target, self, ItemStack.EMPTY, source, amount, adjusted,
+					hit, EnchantmentEffects.isExtraHitArrow(self), deathEyeMultiplier,
+					0.0F, 0.0F, false);
 		}
 		return hit;
 	}

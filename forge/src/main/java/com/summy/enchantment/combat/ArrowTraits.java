@@ -1,9 +1,13 @@
 package com.summy.enchantment.combat;
 
 import com.summy.enchantment.SummyEnchantment;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 
 import java.util.Map;
@@ -151,7 +155,7 @@ public final class ArrowTraits {
 	}
 
 	/** 服务端：命中"会受伤的生物"后调用——打上已命中标记、层数 +1（封顶） */
-	public static void recordHit(AbstractArrow arrow) {
+	public static void recordHit(AbstractArrow arrow, Entity target) {
 		if (arrow == null) {
 			return;
 		}
@@ -163,7 +167,12 @@ public final class ArrowTraits {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		int max = Math.max(0, config.deathEyeMaxStacks);
 		int[] state = state(owner);
+		int before = state[0];
 		state[0] = Math.min(state[0] + 1, max);
+		if (state[0] != before) {
+			SummyEnchantmentScriptHooks.fireDeathEyeChanged(
+					resolvePlayer(arrow, owner), arrow, target, "hit", before, state[0]);
+		}
 	}
 
 	/** 服务端：这支箭是否命中过生物（命中过就永不结算落空——穿透后落地不再掷概率清空） */
@@ -199,6 +208,8 @@ public final class ArrowTraits {
 		state[0] = 0;
 		if (before > 0) {
 			logClear(arrow, owner, before);
+			SummyEnchantmentScriptHooks.fireDeathEyeChanged(
+					resolvePlayer(arrow, owner), arrow, null, "missClear", before, 0);
 		}
 	}
 
@@ -209,9 +220,24 @@ public final class ArrowTraits {
 
 	/** 服务端：清空某位玩家的层数（死亡 / 重生 / 断线） */
 	public static void clearPlayer(UUID playerId) {
+		clearPlayer(playerId, null);
+	}
+
+	/** 服务端：玩家死亡 / 重生 / 断线时清空层数，并把在线实体交给脚本事件。 */
+	public static void clearPlayer(Player player) {
+		if (player != null) {
+			clearPlayer(player.getUUID(), player);
+		}
+	}
+
+	private static void clearPlayer(UUID playerId, Player player) {
 		if (playerId != null) {
+			int before = stacks(playerId);
 			DEATH_EYE_STATE.remove(playerId);
 			CLEAR_LOG_STAMP.remove(playerId);
+			if (before > 0) {
+				SummyEnchantmentScriptHooks.fireDeathEyeChanged(player, null, null, "reset", before, 0);
+			}
 		}
 	}
 
@@ -238,6 +264,13 @@ public final class ArrowTraits {
 	private static int[] state(UUID owner) {
 		// 单元素数组：只存层数（1.3.7 起"落空必清空"，连续落空计数已无判定用途）
 		return DEATH_EYE_STATE.computeIfAbsent(owner, key -> new int[1]);
+	}
+
+	private static Player resolvePlayer(AbstractArrow arrow, UUID owner) {
+		if (arrow != null && arrow.level() instanceof ServerLevel level) {
+			return level.getServer().getPlayerList().getPlayer(owner);
+		}
+		return null;
 	}
 
 	private static void logClear(AbstractArrow arrow, UUID owner, int before) {

@@ -42,6 +42,6 @@
   },
   "recommends": {
     "modmenu": ">=7.0.0",
-    "kubejs": ">=2001.6.5-build.16"
+    "kubejs": ">=2001.6.5-build.16 <2001.6.6"
   }
 }

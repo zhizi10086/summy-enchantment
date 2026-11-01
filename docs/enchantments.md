@@ -1,6 +1,6 @@
 # Summy Enchantment 全附魔总表
 
-> **适用版本**：1.3.10（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
+> **适用版本**：1.4.0（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
 > **数值口径**：文中数值都是**默认值**，实际以配置页或 `config/summy-enchantment.json` 为准；配置键后的括号里写默认值。
 > **命名空间**：本模组所有附魔 id 都是 `summy_enchantment:<id>`；语言键为 `enchantment.summy_enchantment.<id>`。
 > 相关专题（铁砧、力量Plus、伤害管线与限伤、粒子与提示、兼容性）见文末「机制附录」。
@@ -19,7 +19,7 @@
 | `surprise` | 出其不意（Surprise） | 每级 10% 几率让本次攻击再结算一次 | 剑斧 + 三叉戟 + 矛 / 3 | 宝藏 | 无 | `enable_surprise`、`surprise_chance_per_level`、`surprise_particle` |
 | `arrow_velocity` | 疾矢（Arrow Velocity） | 箭矢初速 ×(1 + 10% × 等级) | 弓（弩需开互通） / 5 | 否 | 无 | `enable_arrow_velocity`、`arrow_velocity_bonus_per_level` |
 | `quick_draw` | 速射（Quick Draw） | 满蓄力时间每级 -0.1 秒 | 弓 / 5 | 否 | 无 | `enable_quick_draw`、`quick_draw_seconds_per_level` |
-| `instinctive_release` | 本能释放（Instinctive Release） | 弓拉满自动射出并立刻重新蓄力 | 弓 / 1 | 宝藏 | 无 | `enable_instinctive_release` |
+| `instinctive_release` | 本能释放（Instinctive Release） | 弓拉满自动射出并立刻重新蓄力 | 弓 / 1 | 宝藏 | 破空之愿（1.4.0） | `enable_instinctive_release` |
 | `phantom_arrow` | 幻影箭（Phantom Arrow） | 每级 10% 几率额外射出一支箭 | 弓 + 弩（需开互通） / 3 | 宝藏 | 无 | `enable_phantom_arrow`、`phantom_arrow_chance_per_level` |
 | `endless_quiver` | 无尽箭袋（Endless Quiver） | 任何箭矢都不消耗，没箭也能射普通箭 | 弓 + 弩（需开互通） / 1 | 宝藏 | 原版无限 | `enable_endless_quiver` |
 | `life_shield` | 生命护盾（Life Shield） | 回血时获得伤害吸收，上限按最大生命占比 | 胸甲 / 5 | 否 | 无 | `enable_life_shield`、`life_shield_percent_per_level` |
@@ -37,7 +37,7 @@
 | `auto_smelt` | 自动熔炼（Auto Smelt） | 挖掘掉落替换为熔炉产物 | 镐类 / 1 | 否 | 精准采集 | `enable_auto_smelt` |
 | `scholar` | 经验学者（Scholar） | 经验球经验 +10% × 等级 | 头盔 / 3 | 否 | 无 | `enable_scholar`、`scholar_bonus_per_level` |
 | `lightness` | 轻盈（Lightness） | 箭矢重力每级 -25%（总减重 ≤90%） | 弓 + 弩 / 3 | 否 | 无 | `enable_lightness`、`lightness_gravity_reduction_per_level` |
-| `sky_wish` | 破空之愿（Wish of the Sky） | 蓄力每 tick +5% 箭矢伤害，上限 +200% | 弓 / 1 | 宝藏 | 无 | `enable_sky_wish`、`sky_wish_bonus_per_tick`、`sky_wish_max_bonus`、`arrow_trait_hint_particles` |
+| `sky_wish` | 破空之愿（Wish of the Sky） | 蓄力每 tick +5% 箭矢伤害，上限 +200% | 弓 / 1 | 宝藏 | 本能释放（1.4.0） | `enable_sky_wish`、`sky_wish_bonus_per_tick`、`sky_wish_max_bonus`、`arrow_trait_hint_particles` |
 | `death_eye` | 死亡之眼（Death's Eye） | 命中累计 +25% × 层数（上限 8 层 = ×3.0） | 弓 + 弩 / 1 | 宝藏 | 无 | `enable_death_eye`、`death_eye_damage_per_stack`、`death_eye_max_stacks`、`arrow_trait_hint_particles` |
 | `phase_step` | 闪身步（Phase Step） | 完全免疫投射物伤害（末影人本体口径） | 裤子 / 1 | 宝藏 | 无 | `enable_phase_step` |
 | `hidden_blade` | 藏剑（Hidden Blade） | 未挥砍期间蓄力，下一刀最高 +400% | 仅剑 / 1 | 宝藏 | 无 | `enable_hidden_blade`、`hidden_blade_bonus_per_tick`、`hidden_blade_max_bonus`、`hidden_blade_cooldown_seconds` |
@@ -131,7 +131,7 @@
 - **效果与公式**：弓拉满即**自动射出**并立刻开始下一次蓄力（非开关型数值）。
 - **目标 / 上限 / 稀有度**：弓，上限 **1**，VERY_RARE，**宝藏**。
 - **获取方式**：铁砧 / 随机战利品 / 创造书 / 命令。
-- **互斥**：无。
+- **互斥**：与破空之愿双向互斥（1.4.0 起）。通过 NBT / 数据包强行写入两项的旧物品仍保留双重效果。
 - **相关配置键**：`enable_instinctive_release`（开，服务端）。
 - **边界与实现位置**：服务端每 tick 检查"是否拉满"，客户端有对应部分保证动画同步。实现：`SummyEnchantmentEvents.tickInstinctiveRelease`（服务端）+ `SummyEnchantmentClient`（客户端）。
 
@@ -293,7 +293,7 @@
 - **效果与公式**：箭矢伤害 ×(1 + min(**5% × 真实蓄力 tick**, **+200%**))，**0 tick 起算**：默认 40 tick 封顶（`sky_wish_bonus_per_tick` 0.05、`sky_wish_max_bonus` 2.0）。
 - **目标 / 上限 / 稀有度**：**仅弓**，上限 **1**，VERY_RARE，**宝藏**。
 - **获取方式**：铁砧 / 随机战利品 / 创造书 / 命令。
-- **互斥**：无。
+- **互斥**：与本能释放双向互斥（1.4.0 起）。通过 NBT / 数据包强行写入两项的旧物品仍保留双重效果。
 - **相关配置键**：`enable_sky_wish`（开）、`sky_wish_bonus_per_tick`（0.05）、`sky_wish_max_bonus`（2.0）（服务端）；提示粒子 `arrow_trait_hint_particles`（开，服务端，与死亡之眼共用）。
 - **边界与实现位置**：乘在**基础伤害**（已含原版力量加值）上，并在生成额外箭**之前**应用，所以额外箭自动继承；与速射的换算无关（取真实蓄力 tick）；弩不生效；**满蓄力时**在射手身上每 tick 播 2 个附魔符文（`ENCHANT`）作提示，松手即停。实现：`BowItemMixin`（伤害）+ `ItemMixin`（每 tick 提示）。
 
@@ -392,6 +392,13 @@
 - **Celestial / Apotheosis / Majrusz**：详细规则、实现边界与独立开发时间线见 [compatibility.md](compatibility.md)。生命护盾与死神祝福由 SE 主动退让；生命修补保持 SE 严格优先。
 - **Summy Reliquary（SR）**：把「遁入暗影」的两段斩击与投掷长矛命中接回 ER 的近战管线——基础斩击与投掷命中吃全部增伤与命中后效果；**强力斩击**按 SR 原设计不吃增伤乘区（含死神祝福·造成侧，1.3.7 起由"造成侧抑制窗口"显式保证），但仍吃魔剑/嗜血/粒子与斩杀、不掷出其不意；打开"调试日志"（`debug_logs`）可打印逐次结算日志。未安装 SR 时整份兼容被跳过。
 
+### KubeJS API 与事件
+
+- `server_scripts` 获得完整 `SummyEnchantment` 查询/安全写入 API、只读配置查询和 `SummyEnchantmentEvents`。
+- `client_scripts` 只获得安全查询；`startup_scripts` 不绑定世界相关 API。
+- 七个服务端只读事件为 `meleeSettled`、`lifeShieldChanged`、`deathEyeChanged`、`hiddenBladeConsumed`、`projectileSettled`、`electricArcSettled` 与 `electricArcFinished`；覆盖近战、投射物、电刀逐段和状态变化，不支持取消或替换核心公式。
+- 完整方法和字段见 [kubejs.md](kubejs.md)。
+
 ### 调试日志（`debug_logs`，核心机制组，默认关）
 
 本模组把**核验用**日志行统一收在一个开关下（默认关闭，避免非调试期刷屏）；打开后输出：
@@ -425,5 +432,5 @@
 
 - 附魔 **32** 个；配置 **99** 项，按功能域分成 **11 组**：核心机制 8 / 原版改动 5 / 武器附魔 12 / 弓弩与箭矢 12 / 生存与治疗 12 / 战斗状态 7 / 防御与耐久 7 / 食物与采集 7 / 粒子与特效 12 / 箭矢特性 8 / 赋能 9。
 - 网络协议版本 **9**；中英语言键各 **356** 条且一一对应。
-- 两树（Fabric `1.3.10` / Forge `1.3.10-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
-- 本文档以 **1.3.10 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。
+- 两树（Fabric `1.4.0` / Forge `1.4.0-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
+- 本文档以 **1.4.0 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。

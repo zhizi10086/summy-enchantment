@@ -1,6 +1,7 @@
 package com.summy.enchantment.combat;
 
 import com.summy.enchantment.config.SummyEnchantmentConfig;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
@@ -18,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 电刀（1.3.8）：近战主命中之后的链式弹射。
@@ -43,6 +45,7 @@ public final class ElectricArc {
 
 	/** 待推进的弹射段 */
 	private static final List<Pending> PENDING = new ArrayList<>();
+	private static final AtomicLong NEXT_CHAIN_ID = new AtomicLong(1L);
 
 	private ElectricArc() {
 	}
@@ -50,6 +53,7 @@ public final class ElectricArc {
 	/** 一条等待推进的弹射：到 {@code readyTick} 时结算一段，然后按延迟排下一段 */
 	private static final class Pending {
 		private final ServerLevel level;
+		private final long chainId;
 		private final UUID attackerId;
 		private final ItemStack weapon;
 		private final Set<Integer> hitIds;
@@ -58,16 +62,20 @@ public final class ElectricArc {
 		private Vec3 from;
 		/** 剩余段数：每段结算后递减，减到 0 就结束整条链 */
 		private int segmentsLeft;
+		private final int totalSegments;
+		private int completedSegments;
 		private long readyTick;
 
-		private Pending(ServerLevel level, UUID attackerId, ItemStack weapon, Vec3 from, Set<Integer> hitIds,
-				int segmentsLeft, float amount, long readyTick) {
+		private Pending(ServerLevel level, long chainId, UUID attackerId, ItemStack weapon, Vec3 from,
+				Set<Integer> hitIds, int segmentsLeft, float amount, long readyTick) {
 			this.level = level;
+			this.chainId = chainId;
 			this.attackerId = attackerId;
 			this.weapon = weapon;
 			this.from = from;
 			this.hitIds = hitIds;
 			this.segmentsLeft = segmentsLeft;
+			this.totalSegments = segmentsLeft;
 			this.amount = amount;
 			this.readyTick = readyTick;
 		}
@@ -104,8 +112,9 @@ public final class ElectricArc {
 		hitIds.add(firstHit.getId());
 		int segments = Math.min(level, MAX_SEGMENTS);
 		long delay = Math.max(0, config.electricBladeDelayTicks);
-		PENDING.add(new Pending(serverLevel, player.getUUID(), weapon.copy(), firstHit.position(), hitIds,
-				segments, baseAmount, serverLevel.getGameTime() + delay));
+		PENDING.add(new Pending(serverLevel, NEXT_CHAIN_ID.getAndIncrement(), player.getUUID(),
+				weapon.copy(), firstHit.position(), hitIds, segments, baseAmount,
+				serverLevel.getGameTime() + delay));
 	}
 
 	/** 服务端每 tick 推进一次（在 ServerTickEvent 的 END 阶段调用，与近战粒子队列并列） */
@@ -122,7 +131,9 @@ public final class ElectricArc {
 				continue;
 			}
 			PENDING.remove(i);
-			if (!advance(pending, config)) {
+			String finishReason = advance(pending, config);
+			if (finishReason != null) {
+				finish(pending, finishReason);
 				continue;
 			}
 			// 还有下一段：按延迟重新排队
@@ -131,34 +142,36 @@ public final class ElectricArc {
 		}
 	}
 
-	/** 结算一段弹射；返回 false 表示这条链结束 */
-	private static boolean advance(Pending pending, SummyEnchantmentConfig config) {
+	/** 结算一段弹射；返回 null 表示继续，否则返回结束原因。 */
+	private static String advance(Pending pending, SummyEnchantmentConfig config) {
 		if (pending.level.getServer() == null) {
-			return false;
+			return "invalid_world";
 		}
 		ServerPlayer attacker = pending.level.getServer().getPlayerList().getPlayer(pending.attackerId);
 		if (attacker == null || attacker.isRemoved() || attacker.isDeadOrDying()) {
 			// 攻击者离线/死亡：整条链结束（否则归属与武器等级都不再可靠）
-			return false;
+			return "attacker_offline";
 		}
 		LivingEntity target = findNextTarget(pending);
 		if (target == null) {
-			return false;
+			return "no_target";
 		}
 		// 每段基数：上一段金额 × 倍率（默认 0.8）
 		float ratio = Math.max(0.0F, config.electricBladeDamageRatio);
 		float amount = pending.amount * ratio;
 		if (amount <= 0.0F) {
-			return false;
+			return "no_target";
 		}
 		// 清无敌帧：否则刚被主命中打过的目标会把这一段完全吞掉
 		target.invulnerableTime = 0;
 		DamageSource source = pending.level.damageSources().playerAttack(attacker);
 		boolean hit = target.hurt(source, amount);
+		float magic = 0.0F;
+		float healed = 0.0F;
 		if (hit) {
 			// 弹射段只吃魔剑与嗜血（每个目标各一次；不触发斩杀/出其不意/再次电刀）
-			EnchantmentEffects.applySpellbladeReport(attacker, pending.weapon, target, amount);
-			EnchantmentEffects.applyLifestealReport(attacker, pending.weapon, amount);
+			magic = EnchantmentEffects.applySpellbladeReport(attacker, pending.weapon, target, amount);
+			healed = EnchantmentEffects.applyLifestealReport(attacker, pending.weapon, amount);
 		}
 		// 本段的命中点：既是这次的连线终点，也是下一段的搜索圆心与起点
 		Vec3 hitPoint = target.position().add(0.0D, target.getBbHeight() * 0.5D, 0.0D);
@@ -167,7 +180,21 @@ public final class ElectricArc {
 		pending.hitIds.add(target.getId());
 		// 段数递减：1~4 级严格对应 1~4 段
 		pending.segmentsLeft--;
-		return pending.segmentsLeft > 0;
+		pending.completedSegments++;
+		int segmentIndex = pending.totalSegments - pending.segmentsLeft;
+		SummyEnchantmentScriptHooks.fireElectricArcSettled(
+				pending.chainId, segmentIndex, pending.totalSegments, pending.segmentsLeft,
+				attacker, target, pending.weapon, source, pending.amount, amount, hit, magic, healed);
+		return pending.segmentsLeft > 0 ? null : "completed";
+	}
+
+	/** 发射唯一一次结束事件；停服清表不走这里。 */
+	private static void finish(Pending pending, String reason) {
+		ServerPlayer attacker = pending.level.getServer() == null ? null
+				: pending.level.getServer().getPlayerList().getPlayer(pending.attackerId);
+		SummyEnchantmentScriptHooks.fireElectricArcFinished(
+				pending.chainId, attacker, pending.weapon,
+				pending.completedSegments, pending.totalSegments, reason);
 	}
 
 	/** 以上一段目标为圆心找半径内最近、且链上没打过的活体（排除攻击者本人） */

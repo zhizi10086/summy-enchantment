@@ -45,6 +45,22 @@ dependencies {
     // KubeJS：只用于编译可选插件；运行期由玩家自行安装，不 include、不打包。
     // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
     modCompileOnly files('libs/kubejs-fabric-2001.6.5-build.16.jar')
+    // Rhino 是 KubeJS 事件 API 的编译期父类依赖，同样只在本地参与编译，不进入产物。
+    compileOnly files('libs/rhino-fabric-2001.2.3-build.10.jar')
+
+    // 仅在显式传 -PkubejsModsDir=... 时，把官方 KubeJS/Rhino/Architectury 生产 JAR
+    // 交给 Loom 重映射后加入开发运行期，用于真实脚本与事件自检。不会进入正式产物。
+    if (project.hasProperty('kubejsModsDir')) {
+        def kubejsRoot = file(project.property('kubejsModsDir'))
+        def kubejsVersion = project.findProperty('kubejsVersion') ?: '2001.6.5-build.16'
+        def rhinoVersion = project.findProperty('rhinoVersion') ?: '2001.2.3-build.10'
+        def architecturyVersion = project.findProperty('architecturyVersion') ?: '9.2.14'
+        modRuntimeOnly files(
+                new File(kubejsRoot, "kubejs-fabric-${kubejsVersion}.jar"),
+                new File(kubejsRoot, "rhino-fabric-${rhinoVersion}.jar"),
+                new File(kubejsRoot, "architectury-${architecturyVersion}-fabric.jar")
+        )
+    }
 
     // 真实客户端自检用的官方 Majrusz Fabric 包只在显式指定测试目录时加入运行期；
     // 不参与编译、不打包进正式 jar，也不影响未启用 devcheck 的普通开发客户端。
@@ -112,12 +128,27 @@ tasks.named('build') {
 tasks.named('runClient') {
     if (project.hasProperty('devcheck')) {
         jvmArgs '-Dsummy_enchantment.devcheck=true'
+        jvmArgs "-Dsummy_enchantment.devcheck.mode=${project.findProperty('devcheckMode') ?: 'full'}"
         args '--quickPlaySingleplayer', 'SeDevCheckWorld'
         if (project.hasProperty('externalModsDir')) {
             dependsOn 'copyExternalCompatScanJars'
         }
     }
 }
+
+// 开发和实机自检共用仓库内的 KubeJS 脚本，测试结束清理 run/ 后仍可一键复现。
+tasks.register('prepareKubeJsSelfTest', Copy) {
+    from file('../tools/kubejs-selftest')
+    into layout.projectDirectory.dir('run/kubejs')
+}
+
+if (project.hasProperty('kubejsModsDir')) {
+    tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
+        dependsOn 'prepareKubeJsSelfTest'
+    }
+}
+
+apply from: file('../tools/verify-kubejs-selftest.gradle')
 
 // Majrusz Library 的开发态 ClassFinder 只扫描 run/libs 与 run/mods。
 // Loom 负责把类本身重映射并加入类路径，这里保留官方原包供其扫描。

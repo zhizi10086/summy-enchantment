@@ -82,7 +82,7 @@ public final class SummyReliquaryCompat {
 	 *
 	 * @param entry         注入点标签（诊断日志用）：strike / heavySlash / thrownSpear / melee
 	 * @param rawAmount     未乘乘区的原始金额
-	 * @param amount        最终金额（已乘力量 × 复仇；死神祝福·造成侧自 1.3.7 起在受伤侧统一结算）
+	 * @param amount        攻击侧金额（已乘力量 × 复仇；死神祝福·造成侧自 1.3.7 起在受伤侧统一结算）
 	 * @param landed        这一击是否真的落地（原版 hurt 的返回值）
 	 * @param allowExecute  是否允许斩杀判定
 	 * @param allowSurprise 是否允许出其不意（强力斩击按设计传 false）
@@ -103,18 +103,20 @@ public final class SummyReliquaryCompat {
 		}
 		boolean targetGone = target instanceof LivingEntity living && (living.isDead() || living.getHealth() <= 0.0F);
 
-		float magic = 0.0F;
-		float healed = 0.0F;
+		float primaryMagic = 0.0F;
+		float primaryHealed = 0.0F;
+		float surpriseMagic = 0.0F;
+		float surpriseHealed = 0.0F;
 		boolean executed = false;
 		EnchantmentEffects.SurpriseRoll surprise = null;
 		boolean surpriseLanded = false;
 
 		if (landed) {
 			if (!targetGone) {
-				magic = EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
+				primaryMagic = EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
 			}
 			// 嗜血与目标是否还活着无关：击杀也要按本次伤害回血
-			healed = EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
+			primaryHealed = EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
 			if (mainHit) {
 				MeleeParticles.spawnOnHit(attacker, target);
 			}
@@ -131,15 +133,23 @@ public final class SummyReliquaryCompat {
 					if (target.damage(source, amount)) {
 						surpriseLanded = true;
 						MeleeParticles.spawnSurprise(attacker, target);
-						EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
-						EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
+						surpriseMagic = EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
+						surpriseHealed = EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
 					}
 				}
 			}
 		}
 
-		logSettlement(entry, attacker, weapon, target, rawAmount, amount, landed, magic, healed, executed,
+		float totalMagic = primaryMagic + surpriseMagic;
+		float totalHealed = primaryHealed + surpriseHealed;
+		logSettlement(entry, attacker, weapon, target, rawAmount, amount, landed, totalMagic, totalHealed, executed,
 				allowExecute, allowSurprise, targetGone, surprise, surpriseLanded);
+		if (!attacker.getWorld().isClient) {
+			SummyEnchantmentScriptHooks.fireMeleeSettled(entry, attacker, target, weapon, source,
+					rawAmount, amount, landed, mainHit, primaryMagic, primaryHealed,
+					surpriseMagic, surpriseHealed, executed,
+					surprise != null && surprise.hit(), surpriseLanded);
+		}
 	}
 
 	// ==================== 诊断日志（debug_logs） ====================

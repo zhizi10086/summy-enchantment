@@ -1,0 +1,121 @@
+// 真实客户端自检需要专用存档。允许从仓库外目录复制一份现成世界，
+// 避免清理 run/ 后 quickPlaySingleplayer 停在主菜单并触发无意义的超时。
+tasks.register('prepareDevCheckWorld', Copy) {
+    if (project.hasProperty('devcheckWorldDir')) {
+        from file(project.property('devcheckWorldDir'))
+    }
+    into layout.projectDirectory.dir('run/saves/SeDevCheckWorld')
+}
+
+if (project.hasProperty('devcheck')) {
+    // ForgeGradle 的 runClient 可能在本脚本之后才创建，因此使用延迟匹配。
+    tasks.matching { it.name == 'runClient' }.configureEach {
+        dependsOn 'prepareDevCheckWorld'
+        doFirst {
+            // KubeJS-only 自检必须在启动客户端前确认测试世界存在，避免停在主菜单后才超时。
+            if ((project.findProperty('devcheckMode') ?: 'full') == 'kubejs'
+                    && !file('run/saves/SeDevCheckWorld/level.dat').isFile()) {
+                throw new GradleException(
+                        '缺少 run/saves/SeDevCheckWorld。请先准备专用测试存档，' +
+                                '或使用 -PdevcheckWorldDir=<现成 SeDevCheckWorld 目录> 自动复制。')
+            }
+        }
+    }
+}
+
+// KubeJS 真实客户端自检的自动断言。由 fabric/forge 两树共同引用。
+tasks.register('verifyKubeJsSelfTest') {
+    group = 'verification'
+    description = '运行 KJS-only 客户端自检，并检查日志中的 API、类过滤和事件标记。'
+    dependsOn 'runClient'
+
+    doFirst {
+        if (!project.hasProperty('devcheck')) {
+            throw new GradleException('verifyKubeJsSelfTest 需要 -Pdevcheck')
+        }
+        if ((project.findProperty('devcheckMode') ?: 'full') != 'kubejs') {
+            throw new GradleException('verifyKubeJsSelfTest 需要 -PdevcheckMode=kubejs')
+        }
+        if (!project.hasProperty('kubejsModsDir')) {
+            throw new GradleException('verifyKubeJsSelfTest 需要 -PkubejsModsDir=<目录>')
+        }
+        if (!file('run/saves/SeDevCheckWorld/level.dat').isFile()) {
+            throw new GradleException(
+                    '缺少 run/saves/SeDevCheckWorld。请先准备专用测试存档，' +
+                            '或使用 -PdevcheckWorldDir=<现成 SeDevCheckWorld 目录> 自动复制。')
+        }
+    }
+
+    doLast {
+        def logDir = file('run/logs/kubejs')
+        def required = [
+                'startup.log': [
+                        'SummyEnchantment binding hidden',
+                        'class blocked: com.summy.enchantment.api.SummyEnchantmentApi',
+                        'class blocked: com.summy.enchantment.combat.EnchantmentEffects',
+                        'class blocked: com.summy.enchantment.compat.SummyEnchantmentScriptHooks'
+                ],
+                'client.log': [
+                        'forbidden method hidden: addLifeShield',
+                        'forbidden method hidden: clearLifeShield',
+                        'forbidden method hidden: applyLifesteal',
+                        'forbidden method hidden: meleeMultiplier',
+                        'forbidden method hidden: hiddenBladeCooldownRemaining',
+                        'event group hidden',
+                        'class blocked: com.summy.enchantment.api.SummyEnchantmentApi',
+                        'class blocked: com.summy.enchantment.combat.EnchantmentEffects',
+                        'class blocked: com.summy.enchantment.combat.ArrowTraits',
+                        'class blocked: com.summy.enchantment.compat.SummyEnchantmentScriptHooks'
+                ],
+                'server.log': [
+                        'version=1 ids=32 config=99',
+                        'bool=true boolNumeric=false',
+                        'typeCheck=true fullCheck=false',
+                        'public API class load allowed',
+                        'internal class blocked: com.summy.enchantment.combat.EnchantmentEffects',
+                        'internal class blocked: com.summy.enchantment.combat.ArrowTraits',
+                        'internal class blocked: com.summy.enchantment.compat.SummyEnchantmentScriptHooks'
+                ],
+                '../latest.log': [
+                        '[SE-KJS-EVENT] meleeSettled',
+                        '[SE-KJS-EVENT] lifeShieldChanged',
+                        '[SE-KJS-EVENT] deathEyeChanged',
+                        '[SE-KJS-EVENT] hiddenBladeConsumed',
+                        '[SE-KJS-EVENT] projectileSettled',
+                        '[SE-KJS-EVENT] electricArcSettled',
+                        '[SE-KJS-EVENT] electricArcFinished'
+                ]
+        ]
+
+        def failures = []
+        required.each { name, markers ->
+            def logFile = new File(logDir, name)
+            if (!logFile.isFile()) {
+                failures.add("缺少日志：${logFile}")
+                return
+            }
+            def text = logFile.getText('UTF-8')
+            markers.each { marker ->
+                if (!text.contains(marker)) {
+                    failures.add("${name} 缺少标记：${marker}")
+                }
+            }
+        }
+
+        def combined = logDir.listFiles()
+                ?.findAll { it.isFile() }
+                ?.collect { it.getText('UTF-8') }
+                ?.join('\n') ?: ''
+        ['unexpectedly allowed', 'unexpectedly blocked', 'SE-KJS-.*ERROR'].each { pattern ->
+            if (combined ==~ /(?s).*${pattern}.*/) {
+                failures.add("发现禁止的测试标记：${pattern}")
+            }
+        }
+
+        if (!failures.isEmpty()) {
+            failures.each { logger.error("[SE-KJS-SELFTEST] {}", it) }
+            throw new GradleException("KubeJS 自检失败：${failures.size()} 项")
+        }
+        logger.lifecycle('[SE-KJS-SELFTEST] ALL_OK：API、ClassFilter、七个事件和客户端隔离均通过')
+    }
+}

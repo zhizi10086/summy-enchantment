@@ -1,6 +1,6 @@
 # Summy Enchantment
 
-[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.3.10 Release 说明](docs/releases/1.3.10.md) · [许可证](LICENSE)
+[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.4.0 Release 说明](docs/releases/1.4.0.md) · [许可证](LICENSE) · [第三方构建依赖](THIRD_PARTY_NOTICES.md)
 
 Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改为消耗经验点数，
 新增 32 个附魔（含锋利Plus）、11 组配置页（99 项）与可自定义的粒子特效；可选兼容矛
@@ -11,8 +11,8 @@ Forge 用 Mojang 官方映射，无法共享同一份源码。
 
 | 目录 | 平台 | 版本 | 说明 |
 | --- | --- | --- | --- |
-| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.3.10` | 原始版本 |
-| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.3.10-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
+| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.4.0` | 原始版本 |
+| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.4.0-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
 
 ## 构建
 
@@ -23,7 +23,7 @@ Forge 用 Mojang 官方映射，无法共享同一份源码。
 ```bash
 cd fabric
 ./gradlew build
-# 产物：build/libs/summy-enchantment-1.3.10.jar
+# 产物：build/libs/summy-enchantment-1.4.0.jar
 ```
 
 ### Forge
@@ -31,7 +31,7 @@ cd fabric
 ```bash
 cd forge
 ./gradlew build
-# 产物会复制到仓库根目录的 JAR/summy-enchantment-forge/summy-enchantment-1.3.10-forge.jar
+# 产物会复制到仓库根目录的 JAR/summy-enchantment-forge/summy-enchantment-1.4.0-forge.jar
 ```
 
 Forge 工程自带两个构建期保障（`gradlew build` 自动执行）：

@@ -50,6 +50,9 @@ repositories {
         if (project.hasProperty('externalModsDir')) {
             dirs file(project.property('externalModsDir'))
         }
+        if (project.hasProperty('kubejsModsDir')) {
+            dirs file(project.property('kubejsModsDir'))
+        }
     }
 }
 
@@ -76,6 +79,7 @@ minecraft {
             property 'mixin.env.refMapRemappingFile', "${buildDir}/patchedSrg/output.srg"
             if (project.hasProperty('devcheck')) {
                 property 'summy_enchantment.devcheck', 'true'
+                property 'summy_enchantment.devcheck.mode', project.findProperty('devcheckMode') ?: 'full'
                 args '--quickPlaySingleplayer', 'SeDevCheckWorld'
             }
         }
@@ -149,6 +153,19 @@ dependencies {
     // KubeJS：只用于编译可选插件；运行期由玩家自行安装，绝不打进 SE 产物。
     // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
     compileOnly files('libs/kubejs-forge-2001.6.5-build.16.jar')
+    // Rhino 是 KubeJS 事件 API 的编译期父类依赖，同样只在本地参与编译，不进入产物。
+    compileOnly files('libs/rhino-forge-2001.2.3-build.10.jar')
+
+    // 仅在显式传 -PkubejsModsDir=... 时，把官方 KubeJS/Rhino/Architectury 生产 JAR
+    // 去混淆后加入开发运行期，用于真实脚本与事件自检。不会进入正式产物。
+    if (project.hasProperty('kubejsModsDir')) {
+        def kubejsVersion = project.findProperty('kubejsVersion') ?: '2001.6.5-build.16'
+        def rhinoVersion = project.findProperty('rhinoVersion') ?: '2001.2.3-build.10'
+        def architecturyVersion = project.findProperty('architecturyVersion') ?: '9.2.14'
+        runtimeOnly fg.deobf("kubejs-forge:kubejs-forge:${kubejsVersion}")
+        runtimeOnly fg.deobf("rhino-forge:rhino-forge:${rhinoVersion}")
+        runtimeOnly fg.deobf("architectury-forge:architectury-forge:${architecturyVersion}")
+    }
 }
 
 // ===== 开发期专用：把矛模组的生产 jar 反转成 dev 映射，用于兼容性冒烟 =====
@@ -189,6 +206,20 @@ tasks.matching {
 }.configureEach {
     dependsOn 'copyExternalCompatDevJars'
 }
+
+// 开发和实机自检共用仓库内的 KubeJS 脚本，测试结束清理 run/ 后仍可一键复现。
+tasks.register('prepareKubeJsSelfTest', Copy) {
+    from file('../tools/kubejs-selftest')
+    into layout.projectDirectory.dir('run/kubejs')
+}
+
+if (project.hasProperty('kubejsModsDir')) {
+    tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
+        dependsOn 'prepareKubeJsSelfTest'
+    }
+}
+
+apply from: file('../tools/verify-kubejs-selftest.gradle')
 
 // Summy Reliquary 同样只有生产 jar（SRG 名），dev 环境直接读会因继承链对不上而失败，
 // 所以照矛的做法额外生成一份 deobf 版本给 runServer / runClient 用（不进产物，不影响 build）。

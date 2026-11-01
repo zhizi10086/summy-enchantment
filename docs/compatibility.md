@@ -1,6 +1,6 @@
 # 兼容策略与独立实现记录
 
-> 适用版本：Summy Enchantment 1.3.10（Fabric / Forge）
+> 适用版本：Summy Enchantment 1.4.0（Fabric / Forge）
 
 本文记录与 Celestial Enchantments、Apotheosis、Majrusz's Enchantments 的同功能附魔处理规则，以及生命护盾的独立开发时间线。外部模组均只通过公开注册 ID 识别，不建立编译依赖，也不修改对方代码或配置。
 

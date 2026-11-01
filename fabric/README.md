@@ -6,7 +6,7 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 >
 > 🧩 **Celestial / Apotheosis / Majrusz 兼容规则与独立实现记录见 [docs/compatibility.md](../docs/compatibility.md)**
 >
-> 🔌 **KubeJS 基础 API（方法、示例、边界）见 [docs/kubejs.md](../docs/kubejs.md)**
+> 🔌 **KubeJS API、只读事件、示例与边界见 [docs/kubejs.md](../docs/kubejs.md)**
 
 ## 环境
 
@@ -18,6 +18,16 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Fabric API | 0.92.7+1.20.1 |
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
+
+## 1.4.0 KubeJS 安全增强与弓附魔互斥
+
+- 服务端 `SummyEnchantment` 保留 1.3.9 的九个方法，最终提供 43 个公开方法；新增 `enchantmentCanApplyTo`、`enchantmentCanEnchant`、接口版本、藏剑冷却和配置元数据查询。
+- 客户端绑定提供 24 个只读查询：不提供写入、藏剑冷却或事件组；脚本类过滤器默认封锁全部 SE 内部包，仅服务端精确放行公共 API 类。
+- 新增七个服务端只读事件：`meleeSettled`、`lifeShieldChanged`、`deathEyeChanged`、`hiddenBladeConsumed`、`projectileSettled`、`electricArcSettled`、`electricArcFinished`；支持箭矢、投掷三叉戟、矛与电刀逐段观测，不支持取消或替换伤害公式。
+- `clearLifeShield` 与 `applyLifesteal` 增加逻辑服务端保护，客户端误调用不会修改本地生命、吸收或战斗状态。
+- 破空之愿与本能释放双向互斥；附魔台、铁砧、随机组合与 `/enchant` 均不能新增另一项。NBT / 数据包强行写入两项的旧物品仍保留原双重效果。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.0.jar`（1.3.10 保留）。
+- 完整方法、事件字段与示例见 [docs/kubejs.md](../docs/kubejs.md)。
 
 ## 1.3.10 外部附魔兼容与许可证修复
 
@@ -328,11 +338,14 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.3.10.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.0.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
 >
 > `libs/kubejs-fabric-2001.6.5-build.16.jar` 同样只在编译期用于可选 KubeJS 插件，不进入发布 jar。
+> `libs/rhino-fabric-2001.2.3-build.10.jar` 为 KubeJS 事件 API 的编译期父类依赖，同样不进入发布 jar。
+> 真实 KubeJS 脚本自检可通过 `gradlew runClient -Pdevcheck -PkubejsModsDir=<目录>` 启用；目录内放 KubeJS、Rhino 与 Architectury 官方 Fabric JAR。可用 `kubejsVersion`、`rhinoVersion`、`architecturyVersion` 参数切换测试版本，仓库内 `tools/kubejs-selftest/` 会自动复制到 `run/kubejs`。
+> 推荐使用 `gradlew verifyKubeJsSelfTest -Pdevcheck -PdevcheckMode=kubejs -PkubejsModsDir=<目录>` 自动断言 API、类过滤与七个事件。
 
 ## 游戏内验收
 

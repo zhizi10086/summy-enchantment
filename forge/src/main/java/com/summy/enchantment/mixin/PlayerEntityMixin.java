@@ -260,7 +260,7 @@ public abstract class PlayerEntityMixin {
 	@Inject(method = "attack(Lnet/minecraft/world/entity/Entity;)V", at = @At("TAIL"))
 	private void summyEnchantment$consumeHiddenBlade(Entity target, CallbackInfo ci) {
 		Player self = summyEnchantment$self();
-		EnchantmentEffects.onHiddenBladeSwing(self);
+		EnchantmentEffects.onHiddenBladeSwing(self, target, this.summyEnchantment$mainHitLanded);
 		// 电刀：主命中落地才启动；起始排除集合 = 本次挥砍伤害过的全部目标（含横扫受害者）
 		if (this.summyEnchantment$mainHitLanded && this.summyEnchantment$attackTarget != null) {
 			ElectricArc.start(self, this.summyEnchantment$attackTarget, self.getMainHandItem(),

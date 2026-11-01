@@ -2,6 +2,7 @@ package com.summy.enchantment.mixin;
 
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.PhantomTrident;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.entity.Entity;
@@ -127,12 +128,20 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 	private boolean summyEnchantment$applyThrownEnchantments(Entity target, DamageSource source, float amount,
 			Operation<Boolean> original) {
 		boolean hit = original.call(target, source, amount);
-		if (hit) {
-			Entity owner = ((TridentEntity) (Object) this).getOwner();
-			if (owner instanceof LivingEntity livingOwner) {
-				float dealt = Math.max(amount, 0.0F);
-				EnchantmentEffects.applySpellblade(livingOwner, this.tridentStack, target, dealt);
-				EnchantmentEffects.applyLifesteal(livingOwner, this.tridentStack, dealt);
+		TridentEntity self = (TridentEntity) (Object) this;
+		Entity owner = self.getOwner();
+		if (owner instanceof LivingEntity livingOwner) {
+			float dealt = Math.max(amount, 0.0F);
+			float magic = 0.0F;
+			float healed = 0.0F;
+			if (hit) {
+				magic = EnchantmentEffects.applySpellbladeReport(livingOwner, this.tridentStack, target, dealt);
+				healed = EnchantmentEffects.applyLifestealReport(livingOwner, this.tridentStack, dealt);
+				if (!self.getWorld().isClient) {
+					SummyEnchantmentScriptHooks.fireProjectileSettled(
+							"trident", livingOwner, target, self, this.tridentStack, source,
+							amount, amount, true, false, 1.0F, magic, healed, false);
+				}
 				// 斩杀：投掷三叉戟同样可以补刀（近战由 PlayerEntityMixin 处理）
 				EnchantmentEffects.tryExecute(livingOwner, target, this.tridentStack);
 				// 出其不意：投掷三叉戟同样可以让这次攻击再结算一次
@@ -141,10 +150,22 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 						livingTarget.timeUntilRegen = 0;
 					}
 					if (target.damage(source, amount)) {
-						EnchantmentEffects.applySpellblade(livingOwner, this.tridentStack, target, dealt);
-						EnchantmentEffects.applyLifesteal(livingOwner, this.tridentStack, dealt);
+						float surpriseMagic = EnchantmentEffects.applySpellbladeReport(
+								livingOwner, this.tridentStack, target, dealt);
+						float surpriseHealed = EnchantmentEffects.applyLifestealReport(
+								livingOwner, this.tridentStack, dealt);
+						if (!self.getWorld().isClient) {
+							SummyEnchantmentScriptHooks.fireProjectileSettled(
+									"trident", livingOwner, target, self, this.tridentStack, source,
+									amount, amount, true, false, 1.0F,
+									surpriseMagic, surpriseHealed, true);
+						}
 					}
 				}
+			} else if (!self.getWorld().isClient) {
+				SummyEnchantmentScriptHooks.fireProjectileSettled(
+						"trident", livingOwner, target, self, this.tridentStack, source,
+						amount, amount, false, false, 1.0F, 0.0F, 0.0F, false);
 			}
 		}
 		return hit;

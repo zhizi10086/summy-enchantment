@@ -11,6 +11,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 /**
@@ -35,7 +36,13 @@ public final class SummyEnchantmentEvents {
 		// 玩家死亡时在原地爆发一团粒子（只对玩家生效）
 		ServerLivingEntityEvents.AFTER_DEATH.register((victim, source) -> DeathParticles.onPlayerDeath(victim));
 		// 死亡之眼：死亡即清空层数（重生后重新累计）
-		ServerLivingEntityEvents.AFTER_DEATH.register((victim, source) -> ArrowTraits.clearPlayer(victim.getUuid()));
+		ServerLivingEntityEvents.AFTER_DEATH.register((victim, source) -> {
+			if (victim instanceof PlayerEntity player) {
+				ArrowTraits.clearPlayer(player);
+			} else {
+				ArrowTraits.clearPlayer(victim.getUuid());
+			}
+		});
 		// 藏剑：死亡即清空蓄力
 		ServerLivingEntityEvents.AFTER_DEATH.register((victim, source) ->
 				EnchantmentEffects.clearHiddenBlade(victim.getUuid()));
@@ -49,7 +56,7 @@ public final class SummyEnchantmentEvents {
 				EnchantmentEffects.clearLifeShield(newPlayer);
 			}
 			// 死亡之眼：重生同样清零（死亡事件已清一次，这里做兜底）
-			ArrowTraits.clearPlayer(newPlayer.getUuid());
+			ArrowTraits.clearPlayer(newPlayer);
 			// 藏剑同理
 			EnchantmentEffects.clearHiddenBlade(newPlayer.getUuid());
 		});
@@ -60,7 +67,7 @@ public final class SummyEnchantmentEvents {
 			// 灵魂加护的冷却同样只在本次会话里有意义，断线即忘
 			EnchantmentEffects.clearSoulGraceCooldown(handler.getPlayer().getUuid());
 			// 死亡之眼：断线即清空层数（重登不保留）
-			ArrowTraits.clearPlayer(handler.getPlayer().getUuid());
+			ArrowTraits.clearPlayer(handler.getPlayer());
 			// 藏剑：断线同样清空
 			EnchantmentEffects.clearHiddenBlade(handler.getPlayer().getUuid());
 		});

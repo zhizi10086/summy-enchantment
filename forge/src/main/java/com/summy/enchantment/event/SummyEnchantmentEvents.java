@@ -11,6 +11,7 @@ import com.summy.enchantment.particle.DeathParticles;
 import com.summy.enchantment.particle.MeleeParticles;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
@@ -57,7 +58,11 @@ public final class SummyEnchantmentEvents {
 		EnchantmentEffects.onDeathForBeheading(entity, event.getSource());
 		DeathParticles.onPlayerDeath(entity);
 		// 死亡之眼：死亡即清空层数（重生后重新累计）
-		ArrowTraits.clearPlayer(entity.getUUID());
+		if (entity instanceof Player player) {
+			ArrowTraits.clearPlayer(player);
+		} else {
+			ArrowTraits.clearPlayer(entity.getUUID());
+		}
 		// 藏剑：死亡即清空蓄力
 		EnchantmentEffects.clearHiddenBlade(entity.getUUID());
 	}
@@ -91,7 +96,7 @@ public final class SummyEnchantmentEvents {
 			EnchantmentEffects.clearSoulGraceCooldown(player.getUUID());
 			ParticlePreferences.clear(player.getUUID());
 			// 死亡之眼：断线即清空层数（重登不保留）
-			ArrowTraits.clearPlayer(player.getUUID());
+			ArrowTraits.clearPlayer(player);
 			// 藏剑：断线同样清空
 			EnchantmentEffects.clearHiddenBlade(player.getUUID());
 		}

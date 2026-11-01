@@ -53,6 +53,19 @@ public abstract class EnchantmentMixin {
 			}
 		}
 
+		// 破空之愿与本能释放互斥：自动满蓄力释放与手动蓄力增伤不共存。
+		// 仅阻止新组合；NBT / 数据包强行写入的双附魔仍按原行为运行。
+		if (ModEnchantments.SKY_WISH != null && ModEnchantments.INSTINCTIVE_RELEASE != null) {
+			boolean skyWishToInstinctive = self == ModEnchantments.SKY_WISH
+					&& other == ModEnchantments.INSTINCTIVE_RELEASE;
+			boolean instinctiveToSkyWish = self == ModEnchantments.INSTINCTIVE_RELEASE
+					&& other == ModEnchantments.SKY_WISH;
+			if (skyWishToInstinctive || instinctiveToSkyWish) {
+				cir.setReturnValue(false);
+				return;
+			}
+		}
+
 		// 无限与经验修补共存（反向：this=经验修补、other=无限）
 		if (SummyEnchantmentConfig.get().enableInfinityMending
 				&& self == Enchantments.MENDING && other == Enchantments.INFINITY) {

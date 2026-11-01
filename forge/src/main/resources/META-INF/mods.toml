@@ -30,6 +30,6 @@ description = '''
 [[dependencies.summy_enchantment]]
     modId = "kubejs"
     mandatory = false
-    versionRange = "[2001.6.5-build.16,)"
+    versionRange = "[2001.6.5-build.16,2001.6.6)"
     ordering = "AFTER"
     side = "BOTH"

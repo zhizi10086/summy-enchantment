@@ -2,12 +2,14 @@ package com.summy.enchantment.devcheck;
 
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.EnchantmentEffects;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.registry.ModEnchantments;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.attribute.EntityAttributes;
 import net.minecraft.entity.mob.ZombieEntity;
@@ -32,6 +34,8 @@ import java.util.List;
  */
 public final class EnchantmentFabricDevCheck {
 	private static final boolean ENABLED = Boolean.getBoolean("summy_enchantment.devcheck");
+	/** full = 完整兼容自检；kubejs = 只跑 KubeJS 桥接与脚本，避免外部前置缺失干扰。 */
+	private static final String MODE = System.getProperty("summy_enchantment.devcheck.mode", "full");
 	private static final int CLIENT_IDLE_STOP_TICKS = 1200;
 	private static final int CLIENT_TOTAL_STOP_TICKS = 6000;
 	private static final String TEST_TAG = "se_devcheck_target";
@@ -70,11 +74,20 @@ public final class EnchantmentFabricDevCheck {
 		ServerPlayerEntity player = players.get(0);
 		serverTick++;
 		try {
+			if ("kubejs".equals(MODE)) {
+				if (serverTick == 40) {
+					checkKubeJSEvents(player);
+				} else if (serverTick == 60) {
+					finish("Fabric KubeJS-only 自检结束");
+				}
+				return;
+			}
 			switch (serverTick) {
 				case 20 -> prepareWorld(player);
 				case 40 -> checkMajruszOutgoing(player);
 				case 60 -> checkMajruszIncoming(player);
-				case 80 -> finish("Fabric 客户端自检结束");
+				case 70 -> checkKubeJSEvents(player);
+				case 100 -> finish("Fabric 客户端自检结束");
 				default -> {
 				}
 			}
@@ -127,6 +140,15 @@ public final class EnchantmentFabricDevCheck {
 		check("Fabric 原生 Majrusz 前置已加载", isLoaded("majruszsenchantments")
 				&& isLoaded("majruszlibrary"), "world=" + world.getRegistryKey().getValue());
 		check("测试世界可写", player.isAlive(), "player=" + player.getName().getString());
+		check("破空之愿/本能释放双向互斥",
+				!EnchantmentHelper.isCompatible(List.of(ModEnchantments.SKY_WISH),
+						ModEnchantments.INSTINCTIVE_RELEASE)
+						&& !EnchantmentHelper.isCompatible(List.of(ModEnchantments.INSTINCTIVE_RELEASE),
+								ModEnchantments.SKY_WISH),
+				"sky_to_inst=" + EnchantmentHelper.isCompatible(List.of(ModEnchantments.SKY_WISH),
+						ModEnchantments.INSTINCTIVE_RELEASE)
+						+ " inst_to_sky=" + EnchantmentHelper.isCompatible(
+								List.of(ModEnchantments.INSTINCTIVE_RELEASE), ModEnchantments.SKY_WISH));
 	}
 
 	private static void checkMajruszOutgoing(ServerPlayerEntity player) {
@@ -166,6 +188,27 @@ public final class EnchantmentFabricDevCheck {
 		victim.discard();
 		player.setHealth(player.getMaxHealth());
 		player.setAbsorptionAmount(0.0F);
+	}
+
+	/** 只触发全部 KubeJS 只读事件；无 KubeJS 时核心桥自动短路。 */
+	private static void checkKubeJSEvents(ServerPlayerEntity player) {
+		ZombieEntity target = spawnTarget(player, 100.0F, 100.0F);
+		ItemStack weapon = enchanted(Items.IRON_SWORD, ModEnchantments.SPELLBLADE, 1);
+		SummyEnchantmentScriptHooks.fireLifeShieldChanged(player, "selftest", 2.0F, 3.0F, 20.0F);
+		SummyEnchantmentScriptHooks.fireDeathEyeChanged(player, null, target, "reset", 2, 0);
+		SummyEnchantmentScriptHooks.fireHiddenBladeConsumed(player, target, true, 20, 0.4F, 0.1F);
+		SummyEnchantmentScriptHooks.fireMeleeSettled(
+				"selftest", player, target, weapon, player.getDamageSources().playerAttack(player),
+				10.0F, 12.0F, true, true, 1.0F, 2.0F, 0.5F, 0.25F, false, false, false);
+		SummyEnchantmentScriptHooks.fireProjectileSettled(
+				"selftest", player, target, target, weapon, player.getDamageSources().playerAttack(player),
+				8.0F, 10.0F, true, false, 1.25F, 0.5F, 1.0F, false);
+		SummyEnchantmentScriptHooks.fireElectricArcSettled(
+				1L, 1, 2, 1, player, target, weapon, player.getDamageSources().playerAttack(player),
+				12.0F, 9.6F, true, 0.5F, 1.0F);
+		SummyEnchantmentScriptHooks.fireElectricArcFinished(1L, player, weapon, 1, 2, "no_target");
+		log("KubeJS 事件桥已触发");
+		target.discard();
 	}
 
 	private static ZombieEntity spawnTarget(ServerPlayerEntity player, float maxHealth, float health) {

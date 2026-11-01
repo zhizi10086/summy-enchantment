@@ -17,6 +17,7 @@ public final class SummyEnchantmentKubeJSPlugin extends KubeJSPlugin {
 
 	@Override
 	public void init() {
+		SummyEnchantmentKubeJSEvents.installHooks();
 		if (!logged) {
 			logged = true;
 			SummyEnchantment.LOGGER.info("[Summy Enchantment] KubeJS API 已绑定：SummyEnchantment");
@@ -24,12 +25,26 @@ public final class SummyEnchantmentKubeJSPlugin extends KubeJSPlugin {
 	}
 
 	@Override
+	public void registerEvents() {
+		SummyEnchantmentKubeJSEvents.GROUP.register();
+	}
+
+	@Override
 	public void registerBindings(BindingsEvent event) {
-		event.add("SummyEnchantment", SummyEnchantmentBindings.class);
+		if (event.getType() == ScriptType.SERVER) {
+			event.add("SummyEnchantment", SummyEnchantmentBindings.class);
+		} else if (event.getType() == ScriptType.CLIENT) {
+			event.add("SummyEnchantment", SummyEnchantmentClientBindings.class);
+		}
 	}
 
 	@Override
 	public void registerClasses(ScriptType type, ClassFilter filter) {
-		filter.allow("com.summy.enchantment.api");
+		// 默认封锁本模组所有内部类，只给服务端脚本精确放行公共 API 类。
+		// KubeJS 的 ClassFilter 默认允许，因此不能只写"客户端 deny"。
+		filter.deny("com.summy.enchantment.");
+		if (type == ScriptType.SERVER) {
+			filter.allow("com.summy.enchantment.api.SummyEnchantmentApi");
+		}
 	}
 }

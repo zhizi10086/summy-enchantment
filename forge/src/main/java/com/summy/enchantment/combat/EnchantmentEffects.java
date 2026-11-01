@@ -1,6 +1,7 @@
 package com.summy.enchantment.combat;
 
 import com.summy.enchantment.SummyEnchantment;
+import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.compat.ExternalEnchantmentCompat;
 import com.summy.enchantment.config.DodgeSoundStyle;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
@@ -962,6 +963,7 @@ public final class EnchantmentEffects {
 			// 吸收值是原版与各个模组共用的池子，加法写入不会挤占别人的份额
 			setLifeShield(entity, target);
 			addShieldToPool(entity, target - current);
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "heal", current, target, cap);
 		}
 	}
 
@@ -986,6 +988,8 @@ public final class EnchantmentEffects {
 		if (added > 0.0F) {
 			setLifeShield(entity, target);
 			addShieldToPool(entity, added);
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "add",
+					current, target, lifeShieldCap(entity, level));
 		}
 		return added;
 	}
@@ -1051,6 +1055,8 @@ public final class EnchantmentEffects {
 			float total = quantizeShield(Math.max(0.0F, entity.getAbsorptionAmount() - shrink));
 			entity.setAbsorptionAmount(total);
 			SHIELD_TRACK.put(entity, total);
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "cap",
+					shieldValue, shield, Math.max(0.0F, cap));
 			tracked = total;
 		}
 		if (shield <= 0.0F) {
@@ -1062,8 +1068,11 @@ public final class EnchantmentEffects {
 		float observed = entity.getAbsorptionAmount();
 		float consumed = quantizeShield(Math.max(0.0F, tracked - observed));
 		if (consumed > 0.0F) {
-			setLifeShield(entity, quantizeShield(Math.max(0.0F, shield - consumed)));
+			float after = quantizeShield(Math.max(0.0F, shield - consumed));
+			setLifeShield(entity, after);
 			SHIELD_TRACK.put(entity, observed);
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "consume",
+					shield, after, Math.max(0.0F, cap));
 		} else if (observed > tracked) {
 			// 池子被第三方抬高（例如饰品模组的魂心补满）：跟随记录，不夺权、不重算总量
 			SHIELD_TRACK.put(entity, observed);
@@ -1098,6 +1107,8 @@ public final class EnchantmentEffects {
 			float target = quantizeShield(shield);
 			entity.setAbsorptionAmount(target);
 			SHIELD_TRACK.put(entity, target);
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "restore",
+					observed, shield, lifeShieldCap(entity));
 			if (config.debugLogs) {
 				SummyEnchantment.LOGGER.info("[SE] 生命护盾对账：吸收 {} → {}（护盾 {}，等级 {}）",
 						observed, target, shield, level);
@@ -1312,11 +1323,16 @@ public final class EnchantmentEffects {
 	 * <p>只扣掉"我方护盾那一份"，不碰原版或其它模组给出的吸收。
 	 */
 	public static void clearLifeShield(LivingEntity entity) {
+		if (entity == null || entity.level().isClientSide) {
+			return;
+		}
 		float shield = lifeShield(entity);
+		float cap = lifeShieldCap(entity);
 		SHIELD_TRACK.remove(entity);
 		setLifeShield(entity, 0.0F);
 		if (shield > 0.0F) {
 			entity.setAbsorptionAmount(quantizeShield(Math.max(0.0F, entity.getAbsorptionAmount() - shield)));
+			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "clear", shield, 0.0F, cap);
 		}
 	}
 
@@ -1763,6 +1779,20 @@ public final class EnchantmentEffects {
 		return Math.min(1.0F, (float) charged / (float) fullTicks);
 	}
 
+	/** 藏剑剩余冷却 tick；只在服务端状态有效，冷却结束后返回 0。 */
+	public static int hiddenBladeCooldownRemaining(LivingEntity entity) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		if (!config.enableHiddenBlade || ModEnchantments.HIDDEN_BLADE == null || entity == null) {
+			return 0;
+		}
+		long[] state = HIDDEN_BLADE_STATE.get(entity.getUUID());
+		if (state == null) {
+			return 0;
+		}
+		long remaining = state[1] - entity.level().getGameTime();
+		return remaining <= 0L ? 0 : (int) Math.min(Integer.MAX_VALUE, remaining);
+	}
+
 	// ==================== 藏剑穿透窗口（1.3.8 增补） ====================
 
 	/**
@@ -1864,7 +1894,7 @@ public final class EnchantmentEffects {
 	 *
 	 * <p>只有主手拿着带该附魔的剑时才清空/进冷却，避免"拿着别的武器挥砍"把攒好的层数打掉。
 	 */
-	public static void onHiddenBladeSwing(Player player) {
+	public static void onHiddenBladeSwing(Player player, Entity target, boolean landed) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		if (player == null || !config.enableHiddenBlade || ModEnchantments.HIDDEN_BLADE == null) {
 			return;
@@ -1872,9 +1902,16 @@ public final class EnchantmentEffects {
 		if (EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.HIDDEN_BLADE, player.getMainHandItem()) <= 0) {
 			return;
 		}
+		int chargedTicks = hiddenBladeChargedTicks(player);
+		float bonus = hiddenBladeBonus(player);
+		float progress = hiddenBladeChargeProgress(player);
 		long[] state = HIDDEN_BLADE_STATE.computeIfAbsent(player.getUUID(), key -> new long[2]);
 		state[0] = 0L;
 		state[1] = player.level().getGameTime() + Math.max(0, config.hiddenBladeCooldownSeconds) * 20L;
+		if (chargedTicks > 0) {
+			SummyEnchantmentScriptHooks.fireHiddenBladeConsumed(
+					player, target, landed, chargedTicks, bonus, progress);
+		}
 	}
 
 	/** 藏剑：死亡 / 重生 / 断线清空某位玩家 */
