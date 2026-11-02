@@ -24,9 +24,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
@@ -130,15 +128,27 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 	}
 
 	/**
-	 * 轻盈（1.3.7）：把原版箭的重力常量按"这支箭的轻盈等级"缩放。
+	 * 轻盈：按本次 tick 实际准备施加的重力缩放，而不是抢占重力常量。
 	 *
-	 * <p>已用 javap 核对：{@code tick} 里真正生效的重力是那个 double 常量
-	 * {@code 0.05000000074505806}（同名的 float 局部是死代码）；两端都读各自的表，
-	 * 等级由服务端在箭生成时通过 S2C 包同步，因此射手与旁观者看到的弹道一致。
+	 * <p>其它模组可能先把 {@code 0.05} 改成别的值，例如 Twilight Dusk 会把幻影箭
+	 * 的常量减半。包装最终的速度写入可以读取"当前纵向速度 - 原方法准备写入的速度"
+	 * 得到本次实际重力，再乘 SE 轻盈倍率。这样双方改为乘算共存，也不会再与
+	 * {@code @ModifyConstant} 争同一个字节码常量。
 	 */
-	@ModifyConstant(method = "tick", constant = @Constant(doubleValue = 0.05000000074505806D))
-	private double summyEnchantment$lightnessGravity(double gravity) {
-		return gravity * ArrowTraits.gravityFactor((AbstractArrow) (Object) this);
+	@WrapOperation(
+			method = "tick",
+			at = @At(
+					value = "INVOKE",
+					target = "Lnet/minecraft/world/entity/projectile/AbstractArrow;setDeltaMovement(DDD)V"
+			)
+	)
+	private void summyEnchantment$lightnessGravity(AbstractArrow arrow,
+			double velocityX, double proposedVelocityY, double velocityZ, Operation<Void> original) {
+		double currentVelocityY = arrow.getDeltaMovement().y;
+		double effectiveGravity = currentVelocityY - proposedVelocityY;
+		double adjustedVelocityY = currentVelocityY
+				- effectiveGravity * ArrowTraits.gravityFactor(arrow);
+		original.call(arrow, velocityX, adjustedVelocityY, velocityZ);
 	}
 
 	/**

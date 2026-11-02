@@ -19,6 +19,12 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
 
+## 1.4.1 兼容性修复：Twilight Dusk 重力与饥饿容量
+
+- 轻盈不再与 Twilight Dusk 的幻影箭 `@ModifyConstant` 抢占同一个重力常量，改为包装 `PersistentProjectileEntity#tick` 最终的速度写入。幻影箭半重力与轻盈倍率乘算共存。
+- 大胃袋不再替换饥饿封顶的 `20` 常量，改为包装 `HungerManager#add` 的 `Math.min` 结果和 `isNotFull` 的返回值。其它模组已扩展的容量不会被压低，实际“还能吃”的容量取双方较高值。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.1.jar`（1.4.0 保留）。
+
 ## 1.4.0 KubeJS 安全增强与弓附魔互斥
 
 - 服务端 `SummyEnchantment` 保留 1.3.9 的九个方法，最终提供 43 个公开方法；新增 `enchantmentCanApplyTo`、`enchantmentCanEnchant`、接口版本、藏剑冷却和配置元数据查询。
@@ -338,7 +344,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.0.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.1.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
 >

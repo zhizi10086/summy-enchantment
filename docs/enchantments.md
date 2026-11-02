@@ -1,6 +1,6 @@
 # Summy Enchantment 全附魔总表
 
-> **适用版本**：1.4.0（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
+> **适用版本**：1.4.1（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
 > **数值口径**：文中数值都是**默认值**，实际以配置页或 `config/summy-enchantment.json` 为准；配置键后的括号里写默认值。
 > **命名空间**：本模组所有附魔 id 都是 `summy_enchantment:<id>`；语言键为 `enchantment.summy_enchantment.<id>`。
 > 相关专题（铁砧、力量Plus、伤害管线与限伤、粒子与提示、兼容性）见文末「机制附录」。
@@ -259,7 +259,7 @@
 - **获取方式**：附魔台 / 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_big_stomach`（开）、`big_stomach_bonus_per_level`（4）（均服务端作用域）。
-- **边界与实现位置**：HUD 在饥饿条**上方单起一行**显示"多出来的饥饿值"，溢出饱和度在该行叠加**金色描边**（贴图内置 `textures/gui/appleskin_icons.png`，**不依赖苹果皮**）；创造/旁观模式、骑乘生物、额外饥饿值为 0 时都不画；与"经典状态条"（Classic Bar）兼容——检测到它时按同一份堆叠偏移排在其所有条的上方。实现：数据侧 `HungerManagerMixin`；HUD 侧 Fabric 为 `InGameHudMixin`、Forge 为 `ExtraHungerOverlay`（注册在 `VanillaGuiOverlay.AIR_LEVEL` 之上）。
+- **边界与实现位置**：HUD 在饥饿条**上方单起一行**显示"多出来的饥饿值"，溢出饱和度在该行叠加**金色描边**（贴图内置 `textures/gui/appleskin_icons.png`，**不依赖苹果皮**）；创造/旁观模式、骑乘生物、额外饥饿值为 0 时都不画；与"经典状态条"（Classic Bar）兼容——检测到它时按同一份堆叠偏移排在其所有条的上方。**1.4.1 起与其它饥饿容量修改组合共存**：SE 不替换固定 `20`，只包装封顶结果和能否进食判定；有效上限取双方较高值，不压低外部模组已提供的容量。实现：数据侧 `HungerManagerMixin`；HUD 侧 Fabric 为 `InGameHudMixin`、Forge 为 `ExtraHungerOverlay`（注册在 `VanillaGuiOverlay.AIR_LEVEL` 之上）。
 
 ### 自动熔炼（`auto_smelt`）
 
@@ -286,7 +286,7 @@
 - **获取方式**：附魔台 / 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_lightness`（开）、`lightness_gravity_reduction_per_level`（0.25）（均服务端作用域）。
-- **边界与实现位置**：只作用于**弓/弩射出的箭**（含额外箭），不作用于矛或 SR 投掷物；重力是两端各自计算的常量，因此等级通过 **S2C 通道**（实体 id + 等级，协议版本 9）同步给 64 格内同维度玩家（对方需装本模组），保证射手与旁观者看到的弹道一致。实现：`PersistentProjectileEntityMixin`（`tick` 的重力常量）+ `ArrowTraits` + `ConfigSync`。
+- **边界与实现位置**：只作用于**弓/弩射出的箭**（含额外箭），不作用于矛或 SR 投掷物；重力是两端各自计算的常量，因此等级通过 **S2C 通道**（实体 id + 等级，协议版本 9）同步给 64 格内同维度玩家（对方需装本模组），保证射手与旁观者看到的弹道一致。**1.4.1 起不再修改重力常量**，而是包装 `tick` 最终纵向速度写入；Twilight Dusk 等模组先调整的实际重力仍会保留，再乘 SE 轻盈倍率，双方效果乘算共存。实现：`PersistentProjectileEntityMixin` + `ArrowTraits` + `ConfigSync`。
 
 ### 破空之愿（`sky_wish`）
 
@@ -432,5 +432,5 @@
 
 - 附魔 **32** 个；配置 **99** 项，按功能域分成 **11 组**：核心机制 8 / 原版改动 5 / 武器附魔 12 / 弓弩与箭矢 12 / 生存与治疗 12 / 战斗状态 7 / 防御与耐久 7 / 食物与采集 7 / 粒子与特效 12 / 箭矢特性 8 / 赋能 9。
 - 网络协议版本 **9**；中英语言键各 **356** 条且一一对应。
-- 两树（Fabric `1.4.0` / Forge `1.4.0-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
-- 本文档以 **1.4.0 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。
+- 两树（Fabric `1.4.1` / Forge `1.4.1-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
+- 本文档以 **1.4.1 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。

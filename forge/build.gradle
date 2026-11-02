@@ -547,7 +547,7 @@ tasks.register('verifyMixinTargets') {
             def keys = mappings["com/summy/enchantment/mixin/$cls"]?.keySet() ?: ([] as Set)
             def used = (text =~ /(?:method|target)\s*=\s*"([^"]+)"/).collect { it[1] } as Set
             used.each { s ->
-                if (s.startsWith('Lcom/') || s.startsWith('Lorg/')) {
+                if (s.startsWith('Lcom/') || s.startsWith('Lorg/') || s.startsWith('Ljava/')) {
                     return
                 }
                 if (!keys.contains(s)) {

@@ -1,6 +1,6 @@
 # 兼容策略与独立实现记录
 
-> 适用版本：Summy Enchantment 1.4.0（Fabric / Forge）
+> 适用版本：Summy Enchantment 1.4.1（Fabric / Forge）
 
 本文记录与 Celestial Enchantments、Apotheosis、Majrusz's Enchantments 的同功能附魔处理规则，以及生命护盾的独立开发时间线。外部模组均只通过公开注册 ID 识别，不建立编译依赖，也不修改对方代码或配置。
 
@@ -13,6 +13,13 @@
 | 死神祝福 `summy_enchantment:deaths_blessing` | Majrusz `majruszsenchantments:death_wish` | 同一实体带有死神之愿时，SE 的对应侧主动退让：攻击者侧不再乘造成倍率，受击者侧不再享受受伤倍率。双方分别判断。 |
 
 生命护盾与生命修补的 `LivingHealEvent` 先后关系保持不变：SE 生命修补仍在治疗入口最先结算，因此 SE 修理成功时不会触发后续吸收或 Apotheosis 治疗事件。这是已确认的刻意优先级，不是随机事件顺序。
+
+## Mixin 兼容规则
+
+- **Twilight Dusk 幻影箭重力**：Twilight Dusk 1.2 使用 `@ModifyConstant` 把幻影箭的重力常量减半。SE 1.4.1 不再占用该常量，而是读取箭矢 `tick` 中最终准备写入的纵向速度，按实际重力乘 SE 轻盈倍率。两项同时存在时按乘算处理，例如 `0.5 × 0.6 = 0.3`。
+- **大胃袋与其它饥饿容量修改**：SE 1.4.1 包装饥饿封顶表达式与“还能吃”返回值，不从固定 `20` 常量抢占。SE 保证大胃袋自身上限，同时保留其它模组更高或更宽的判定；有效上限取双方较高值。
+
+Farmer's Delight 1.20.1 公开源码的饱食效果注入不直接修改 `FoodData` 容量。SE 此项改动针对组合环境中的固定常量抢占问题，不对 Farmer's Delight 做硬编码特判。
 
 ## 独立实现记录
 
@@ -40,4 +47,5 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 外部模组的组合验收应在正式 Forge 或 Kilt 实例进行；不要把未经 deobf 的生产 Jar 直接放入 ForgeGradle dev `run/mods`，否则会先被对方 Mixin 的开发映射问题拦截。
 - 2026-10-28：Forge 真实客户端同时装载 Celestial Enchantments 1.3.7、Apotheosis 7.4.8、Majrusz's Enchantments 1.10.8，`[SE-DEVCHECK]` 共 12 项、失败 0 项；覆盖 SE/Celestial 生命护盾退让与恢复、SE/Apotheosis 生命修补优先级及回退、SE/Majrusz 死神祝福造成侧与受伤侧单层结算。
 - 2026-10-28：Fabric 原生真实客户端装载 Majrusz's Enchantments Fabric 1.10.8 + Majrusz Library Fabric 7.0.8，`[SE-DEVCHECK]` 共 4 项、失败 0 项；造成侧基础 10 点结算为 15 点、受伤侧结算为 9.5 点，确认 SE 退让后只剩 Majrusz 一层。
+- 2026-11-02，Fabric 与 Forge `clean build` 通过；Forge `verifyMixinTargets` 29 个文件全绿。Forge 组合启动使用 Farmer's Delight `1.20.1-1.3.2` 与按 Twilight Dusk 1.2 `PhantomArrowGravityMixin` 同源码构造的注入夹具：SE 速度包装和 Twilight 常量修改均成功应用，未出现跳过或 Critical injection failure；大胃袋 5 级读取上限 40，饥饿值从 20 吃 4 点后为 24。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。

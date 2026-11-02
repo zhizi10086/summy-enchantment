@@ -1,6 +1,6 @@
 # Summy Enchantment
 
-本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.4.0）一致；
+本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.4.1）一致；
 两份源码因 Yarn 与 Mojang 官方映射不同而独立维护。
 
 Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
@@ -19,7 +19,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 | 构建 | ForgeGradle 6 + MixinGradle 0.7.38 + MixinExtras 0.5.5（jar-in-jar）+ 官方映射 |
 | JDK | 17（`gradle.properties` / 全局 `~/.gradle/gradle.properties` 指定） |
 | 构建命令 | `gradlew build` |
-| 产物 | `JAR/summy-enchantment-forge/summy-enchantment-1.4.0-forge.jar` |
+| 产物 | `JAR/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar` |
 
 构建相关的三个本地化处理（都在 `build.gradle` 内，注释有说明）：
 
@@ -43,6 +43,12 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
    `libs/rhino-forge-2001.2.3-build.10.jar` 只补足事件 API 的编译期父类。
    真实 KubeJS 脚本自检可通过 `gradlew runClient -Pdevcheck -PkubejsModsDir=<目录>` 启用。可用 `kubejsVersion`、`rhinoVersion`、`architecturyVersion` 参数切换测试版本，仓库内 `tools/kubejs-selftest/` 会自动复制到 `run/kubejs`。
    推荐使用 `gradlew verifyKubeJsSelfTest -Pdevcheck -PdevcheckMode=kubejs -PkubejsModsDir=<目录>` 自动断言 API、类过滤与七个事件。
+
+### 1.4.1-forge 兼容性修复：Twilight Dusk 重力与饥饿容量
+
+- 轻盈不再与 Twilight Dusk 的幻影箭 `@ModifyConstant` 抢占同一个重力常量，改为包装 `AbstractArrow#tick` 最终的速度写入。幻影箭半重力与轻盈倍率乘算共存。
+- 大胃袋不再替换饥饿封顶的 `20` 常量，改为包装 `FoodData#eat` 的 `Math.min` 结果和 `needsFood` 的返回值。其它模组已扩展的容量不会被压低，实际“还能吃”的容量取双方较高值。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.1-forge.jar`（1.4.0 保留）。
 
 ### 1.4.0-forge KubeJS 安全增强与弓附魔互斥
 
