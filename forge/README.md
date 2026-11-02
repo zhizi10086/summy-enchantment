@@ -48,6 +48,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 
 - 轻盈不再与 Twilight Dusk 的幻影箭 `@ModifyConstant` 抢占同一个重力常量，改为包装 `AbstractArrow#tick` 最终的速度写入。幻影箭半重力与轻盈倍率乘算共存。
 - 大胃袋不再替换饥饿封顶的 `20` 常量，改为包装 `FoodData#eat` 的 `Math.min` 结果和 `needsFood` 的返回值。其它模组已扩展的容量不会被压低，实际“还能吃”的容量取双方较高值。
+- 官方 Farmer's Delight `1.20.1-1.3.4` + Twilight Dusk `1.2fix1` 真实客户端自检共 19 项、失败 0 项；重力 Mixin、饥饿 Mixin 与滋养 Mixin 均成功应用。
 - 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.1-forge.jar`（1.4.0 保留）。
 
 ### 1.4.0-forge KubeJS 安全增强与弓附魔互斥

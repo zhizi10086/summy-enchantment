@@ -16,8 +16,23 @@ if ([string]::IsNullOrWhiteSpace($ReleaseRoot)) {
     $ReleaseRoot = Join-Path $RepoRoot 'JAR'
 }
 
-$fabricJar = Join-Path $ReleaseRoot 'summy-enchantment\summy-enchantment-1.3.10.jar'
-$forgeJar = Join-Path $ReleaseRoot 'summy-enchantment-forge\summy-enchantment-1.3.10-forge.jar'
+$utf8 = [System.Text.Encoding]::UTF8
+$fabricProperties = [System.IO.File]::ReadAllText(
+    (Join-Path $RepoRoot 'fabric\gradle.properties'), $utf8)
+$forgeProperties = [System.IO.File]::ReadAllText(
+    (Join-Path $RepoRoot 'forge\gradle.properties'), $utf8)
+if ($fabricProperties -notmatch '(?m)^mod_version=([^\r\n]+)$') {
+    throw '无法从 fabric/gradle.properties 读取 mod_version'
+}
+$fabricVersion = $Matches[1].Trim()
+if ($forgeProperties -notmatch '(?m)^mod_version=([^\r\n]+)$') {
+    throw '无法从 forge/gradle.properties 读取 mod_version'
+}
+$forgeVersion = $Matches[1].Trim()
+$fabricJar = Join-Path $ReleaseRoot (
+    'summy-enchantment\summy-enchantment-{0}.jar' -f $fabricVersion)
+$forgeJar = Join-Path $ReleaseRoot (
+    'summy-enchantment-forge\summy-enchantment-{0}.jar' -f $forgeVersion)
 $failures = [System.Collections.Generic.List[string]]::new()
 $checks = 0
 
@@ -78,16 +93,19 @@ Check-Release 'Fabric JAR exists' (Test-Path -LiteralPath $fabricJar) $fabricJar
 Check-Release 'Forge JAR exists' (Test-Path -LiteralPath $forgeJar) $forgeJar
 
 $expectedIconSha256 = '4B1FC2FE52542FB50D343B165CB07872D3EAEB9D57F79500AD253381186C212F'
-$utf8 = [System.Text.Encoding]::UTF8
-$fabricProperties = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'fabric\gradle.properties'), $utf8)
-$forgeProperties = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'forge\gradle.properties'), $utf8)
-$releaseNotes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'docs\releases\1.3.10.md'), $utf8)
+$releaseNotePath = Join-Path $RepoRoot ('docs\releases\{0}.md' -f $fabricVersion)
+Check-Release 'Release notes exists' (Test-Path -LiteralPath $releaseNotePath) $releaseNotePath
+$releaseNotes = if (Test-Path -LiteralPath $releaseNotePath) {
+    [System.IO.File]::ReadAllText($releaseNotePath, $utf8)
+} else {
+    ''
+}
 $compatibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'docs\compatibility.md'), $utf8)
-Check-Release 'Fabric source version' ($fabricProperties -match '(?m)^mod_version=1\.3\.10$') '1.3.10'
-Check-Release 'Forge source version' ($forgeProperties -match '(?m)^mod_version=1\.3\.10-forge$') '1.3.10-forge'
+Check-Release 'Fabric source version' (-not [string]::IsNullOrWhiteSpace($fabricVersion)) $fabricVersion
+Check-Release 'Forge source version' (-not [string]::IsNullOrWhiteSpace($forgeVersion)) $forgeVersion
 Check-Release 'Release notes scale' ($releaseNotes -match '32.*99.*11') '32/99/11'
-Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*12.*0' -and $releaseNotes -match 'Fabric.*4.*0') 'Forge 12/0, Fabric 4/0'
-Check-Release 'Compatibility record' ($compatibility -match 'Forge.*12.*0' -and $compatibility -match 'Fabric.*4.*0') 'Forge/Fabric client checks'
+Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*19.*0') 'Forge 19/0'
+Check-Release 'Compatibility record' ($compatibility -match 'Forge.*19.*0') 'Forge 19/0 client check'
 Check-Release 'No local absolute paths in public docs' (-not (($releaseNotes + $compatibility) -match '[A-Z]:\\')) 'docs/releases + docs/compatibility'
 
 if ($failures.Count -eq 0) {
@@ -108,13 +126,15 @@ if ($failures.Count -eq 0) {
         if ($pair.Loader -eq 'Fabric') {
             $json = $metadataText | ConvertFrom-Json
             Check-Release 'Fabric mod id' ($json.id -eq 'summy_enchantment') $json.id
-            Check-Release 'Fabric version' ($json.version -eq '1.3.10') $json.version
+            Check-Release 'Fabric version' ($json.version -eq $fabricVersion) $json.version
             Check-Release 'Fabric license' ($json.license -eq 'MIT') $json.license
             Check-Release 'Fabric icon metadata' ($json.icon -eq 'assets/summy_enchantment/icon.png') $json.icon
             $iconSha = Get-ZipEntrySha256 $pair.Path 'assets/summy_enchantment/icon.png'
             Check-Release 'Fabric embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
         } else {
-            Check-Release 'Forge version' ($metadataText -match 'version\s*=\s*"1\.3\.10-forge"') '1.3.10-forge'
+            Check-Release 'Forge version' (
+                $metadataText -match ('version\s*=\s*"{0}"' -f [regex]::Escape($forgeVersion))
+            ) $forgeVersion
             Check-Release 'Forge license' ($metadataText -match 'license\s*=\s*"MIT"') 'MIT'
             Check-Release 'Forge icon metadata' ($metadataText -match 'logoFile\s*=\s*"icon\.png"') 'icon.png'
             $iconSha = Get-ZipEntrySha256 $pair.Path 'icon.png'

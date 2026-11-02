@@ -1,6 +1,7 @@
 package com.summy.enchantment.devcheck;
 
 import com.summy.enchantment.SummyEnchantment;
+import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.registry.ModEnchantments;
@@ -8,10 +9,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.food.FoodData;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -23,6 +29,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.registries.ForgeRegistries;
 
+import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -74,6 +81,7 @@ public final class EnchantmentForgeDevCheck {
 			}
 			switch (serverTick) {
 				case 20 -> prepareWorld(player);
+				case 30 -> checkCompatibilityFixtures(player);
 				case 40 -> checkLifeShield(player);
 				case 60 -> checkLifeMending(player);
 				case 80 -> checkDeathsBlessing(player);
@@ -127,13 +135,116 @@ public final class EnchantmentForgeDevCheck {
 		log("测试准备：维度=" + level.dimension().location()
 				+ "，Celestial=" + isLoaded("celestial_enchantments")
 				+ "，Apotheosis=" + isLoaded("apotheosis")
-				+ "，Majrusz=" + isLoaded("majruszsenchantments"));
+				+ "，Majrusz=" + isLoaded("majruszsenchantments")
+				+ "，Farmer's Delight=" + isLoaded("farmersdelight")
+				+ "，Twilight Dusk=" + isLoaded("twilight_dusk"));
 		check("基础环境", level != null && player.isAlive(), "player=" + player.getName().getString());
 		check("破空之愿/本能释放双向互斥",
 				!ModEnchantments.SKY_WISH.isCompatibleWith(ModEnchantments.INSTINCTIVE_RELEASE)
 						&& !ModEnchantments.INSTINCTIVE_RELEASE.isCompatibleWith(ModEnchantments.SKY_WISH),
 				"sky_to_inst=" + ModEnchantments.SKY_WISH.isCompatibleWith(ModEnchantments.INSTINCTIVE_RELEASE)
 						+ " inst_to_sky=" + ModEnchantments.INSTINCTIVE_RELEASE.isCompatibleWith(ModEnchantments.SKY_WISH));
+	}
+
+	/**
+	 * 用官方 Farmer's Delight 1.3.4 与 Twilight Dusk 1.2fix1 做兼容行为断言。
+	 *
+	 * <p>版本号固定检查可以避免测试目录里残留旧 JAR 时“看似通过、实际没测到目标版本”。
+	 */
+	private static void checkCompatibilityFixtures(ServerPlayer player) {
+		if (isLoaded("farmersdelight")) {
+			String version = modVersion("farmersdelight");
+			check("Farmer's Delight 官方测试版本", "1.20.1-1.3.4".equals(version), "version=" + version);
+			checkBigStomachWithNourishment(player);
+		}
+		if (isLoaded("twilight_dusk")) {
+			String version = modVersion("twilight_dusk");
+			check("Twilight Dusk 官方测试版本", "1.2fix1".equals(version), "version=" + version);
+			checkTwilightGravityCoexistence(player);
+		}
+	}
+
+	/** 大胃袋的 40 点容量必须真实生效，且 Farmer's Delight 的滋养仍可让满值玩家进食。 */
+	private static void checkBigStomachWithNourishment(ServerPlayer player) {
+		player.setItemSlot(EquipmentSlot.CHEST,
+				enchanted(Items.IRON_CHESTPLATE, ModEnchantments.BIG_STOMACH, 5));
+		FoodData food = player.getFoodData();
+		food.setFoodLevel(0);
+		food.setSaturation(0.0F);
+		food.eat(30, 0.0F);
+		check("大胃袋与饥饿值上限共存：第一段进食", food.getFoodLevel() == 30,
+				"food=" + food.getFoodLevel() + " cap=" + EnchantmentEffects.foodLevelCap(player));
+		food.eat(20, 0.0F);
+		check("大胃袋与饥饿值上限共存：到达 40", food.getFoodLevel() == 40,
+				"food=" + food.getFoodLevel() + " cap=" + EnchantmentEffects.foodLevelCap(player));
+		check("大胃袋与饥饿值上限共存：满值时 needsFood=false", !food.needsFood(),
+				"food=" + food.getFoodLevel());
+
+		MobEffect nourishment = ForgeRegistries.MOB_EFFECTS.getValue(
+				new ResourceLocation("farmersdelight", "nourishment"));
+		if (nourishment == null) {
+			check("Farmer's Delight 滋养效果已注册", false, "farmersdelight:nourishment=null");
+		} else {
+			player.addEffect(new MobEffectInstance(nourishment, 200, 0));
+			check("Farmer's Delight 滋养在满值时仍允许进食", player.canEat(false),
+					"food=" + food.getFoodLevel() + " nourishment=" + player.hasEffect(nourishment));
+			player.removeEffect(nourishment);
+		}
+
+		player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
+		food.setFoodLevel(20);
+		food.setSaturation(5.0F);
+	}
+
+	/**
+	 * Twilight Dusk 只把幻影箭的原版重力常量减半；SE 应在此基础上再乘轻盈倍率。
+	 *
+	 * <p>不依赖私有字段或硬编码 0.05：直接让四支箭各 tick 一次，比较实际纵向速度。
+	 */
+	private static void checkTwilightGravityCoexistence(ServerPlayer player) {
+		try {
+			float normal = sampleArrowGravity(player, "github.gold_block.entity.KnightArrow", 0);
+			float phantom = sampleArrowGravity(player, "github.gold_block.entity.PhantomKnightArrow", 0);
+			float lightNormal = sampleArrowGravity(
+					player, "github.gold_block.entity.KnightArrow", 2);
+			float lightPhantom = sampleArrowGravity(
+					player, "github.gold_block.entity.PhantomKnightArrow", 2);
+			float twilightRatio = phantom / normal;
+			float seOnNormalRatio = lightNormal / normal;
+			float combinedOnPhantomRatio = lightPhantom / phantom;
+			float expectedSeRatio = 1.0F - Math.min(0.9F,
+					2.0F * com.summy.enchantment.config.SummyEnchantmentConfig.get()
+							.lightnessGravityReductionPerLevel);
+
+			check("Twilight Dusk 幻影箭重力为普通箭的一半",
+					Math.abs(twilightRatio - 0.5F) < 0.01F,
+					"normal=" + normal + " phantom=" + phantom + " ratio=" + twilightRatio);
+			check("SE 轻盈与 Twilight Dusk 重力乘算（普通箭）",
+					Math.abs(seOnNormalRatio - expectedSeRatio) < 0.01F,
+					"ratio=" + seOnNormalRatio + " expected=" + expectedSeRatio);
+			check("SE 轻盈与 Twilight Dusk 重力乘算（幻影箭）",
+					Math.abs(combinedOnPhantomRatio - expectedSeRatio) < 0.01F,
+					"ratio=" + combinedOnPhantomRatio + " expected=" + expectedSeRatio);
+		} catch (ReflectiveOperationException exception) {
+			check("Twilight Dusk 测试箭构造", false, exception.toString());
+		}
+	}
+
+	private static float sampleArrowGravity(ServerPlayer player, String className, int lightness)
+			throws ReflectiveOperationException {
+		Class<?> arrowClass = Class.forName(className);
+		Constructor<?> constructor = arrowClass.getConstructor(
+				net.minecraft.world.level.Level.class, LivingEntity.class);
+		AbstractArrow arrow = (AbstractArrow) constructor.newInstance(player.serverLevel(), player);
+		arrow.moveTo(player.getX() + 4.0D, 160.0D, player.getZ(), 0.0F, 0.0F);
+		arrow.setDeltaMovement(Vec3.ZERO);
+		ArrowTraits.setServerLightness(arrow, lightness);
+		player.serverLevel().addFreshEntity(arrow);
+		arrow.tick();
+		float velocityY = (float) arrow.getDeltaMovement().y;
+		ArrowTraits.setServerLightness(arrow, 0);
+		arrow.discard();
+		return velocityY;
 	}
 
 	private static void checkLifeShield(ServerPlayer player) {
@@ -280,6 +391,9 @@ public final class EnchantmentForgeDevCheck {
 		zombie.setHealth(health);
 		zombie.setDeltaMovement(Vec3.ZERO);
 		zombie.invulnerableTime = 0;
+		// 让测试僵尸具备正常战斗实体应有的“已完成首次 tick”状态；
+		// SE 在 tickCount=0 时会跳过装备附魔读取，避免构造阶段装备栏尚未建立导致空指针。
+		zombie.tickCount = 1;
 		level.addFreshEntity(zombie);
 		return zombie;
 	}
@@ -304,6 +418,12 @@ public final class EnchantmentForgeDevCheck {
 
 	private static boolean isLoaded(String modId) {
 		return net.minecraftforge.fml.ModList.get().isLoaded(modId);
+	}
+
+	private static String modVersion(String modId) {
+		return net.minecraftforge.fml.ModList.get().getModContainerById(modId)
+				.map(container -> container.getModInfo().getVersion().toString())
+				.orElse("missing");
 	}
 
 	private static void check(String label, boolean ok, String detail) {

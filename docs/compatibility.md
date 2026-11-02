@@ -47,5 +47,8 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 外部模组的组合验收应在正式 Forge 或 Kilt 实例进行；不要把未经 deobf 的生产 Jar 直接放入 ForgeGradle dev `run/mods`，否则会先被对方 Mixin 的开发映射问题拦截。
 - 2026-10-28：Forge 真实客户端同时装载 Celestial Enchantments 1.3.7、Apotheosis 7.4.8、Majrusz's Enchantments 1.10.8，`[SE-DEVCHECK]` 共 12 项、失败 0 项；覆盖 SE/Celestial 生命护盾退让与恢复、SE/Apotheosis 生命修补优先级及回退、SE/Majrusz 死神祝福造成侧与受伤侧单层结算。
 - 2026-10-28：Fabric 原生真实客户端装载 Majrusz's Enchantments Fabric 1.10.8 + Majrusz Library Fabric 7.0.8，`[SE-DEVCHECK]` 共 4 项、失败 0 项；造成侧基础 10 点结算为 15 点、受伤侧结算为 9.5 点，确认 SE 退让后只剩 Majrusz 一层。
-- 2026-11-02，Fabric 与 Forge `clean build` 通过；Forge `verifyMixinTargets` 29 个文件全绿。Forge 组合启动使用 Farmer's Delight `1.20.1-1.3.2` 与按 Twilight Dusk 1.2 `PhantomArrowGravityMixin` 同源码构造的注入夹具：SE 速度包装和 Twilight 常量修改均成功应用，未出现跳过或 Critical injection failure；大胃袋 5 级读取上限 40，饥饿值从 20 吃 4 点后为 24。
+- 2026-11-02，Fabric 与 Forge `clean build` 通过；Forge `verifyMixinTargets` 29 个文件全绿。
+- 2026-11-02，Forge 真实客户端同时装载官方 Farmer's Delight `1.20.1-1.3.4`（SHA-256 `34f03eb671ea1ca579b00c98e4541404cb96d1a292014aed9cc5eb45ad8afbce`）与 Twilight Dusk `1.2fix1`（SHA-256 `91f68bc7fa1f1fdc2e505c3b184f4c051ba1bed7656d8163f68b74d4aef2e40e`），并安装 Twilight Dusk 所需的 Twilight Forest 4.3.2508、Curios 5.14.1。`[SE-DEVCHECK]` 共 19 项、失败 0 项。
+- 同一轮日志确认 `PersistentProjectileEntityMixin`、`PhantomArrowGravityMixin`、`HungerManagerMixin`、`NourishmentAlwaysEatMixin` 均成功应用，未出现 `already redirected`、`Critical injection failure` 或 Mixin apply 失败。
+- 幻影箭重力实测为普通箭的一半；轻盈 2 级再乘 0.5，普通箭与幻影箭都正确保留了 Twilight Dusk 的减重力。大胃袋 5 级实际从 0 吃至 30、40，满值时 `needsFood=false`；Farmer's Delight 的滋养效果在 40 点时仍允许进食。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。
