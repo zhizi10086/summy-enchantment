@@ -25,14 +25,25 @@ if ($fabricProperties -notmatch '(?m)^mod_version=([^\r\n]+)\r?$') {
     throw '无法从 fabric/gradle.properties 读取 mod_version'
 }
 $fabricVersion = $Matches[1].Trim()
+if ($fabricProperties -notmatch '(?m)^minecraft_version=([^\r\n]+)\r?$') {
+    throw '无法从 fabric/gradle.properties 读取 minecraft_version'
+}
+$fabricMinecraftVersion = $Matches[1].Trim()
 if ($forgeProperties -notmatch '(?m)^mod_version=([^\r\n]+)\r?$') {
     throw '无法从 forge/gradle.properties 读取 mod_version'
 }
 $forgeVersion = $Matches[1].Trim()
-$fabricJar = Join-Path $ReleaseRoot (
-    'summy-enchantment\summy-enchantment-{0}.jar' -f $fabricVersion)
-$forgeJar = Join-Path $ReleaseRoot (
-    'summy-enchantment-forge\summy-enchantment-{0}.jar' -f $forgeVersion)
+if ($forgeProperties -notmatch '(?m)^minecraft_version=([^\r\n]+)\r?$') {
+    throw '无法从 forge/gradle.properties 读取 minecraft_version'
+}
+$forgeMinecraftVersion = $Matches[1].Trim()
+if ($fabricMinecraftVersion -ne $forgeMinecraftVersion) {
+    throw "Fabric 与 Forge 的 minecraft_version 不一致：$fabricMinecraftVersion / $forgeMinecraftVersion"
+}
+$fabricJarDirectory = Join-Path (Join-Path $ReleaseRoot $fabricMinecraftVersion) 'summy-enchantment'
+$forgeJarDirectory = Join-Path (Join-Path $ReleaseRoot $forgeMinecraftVersion) 'summy-enchantment-forge'
+$fabricJar = Join-Path $fabricJarDirectory ('summy-enchantment-{0}.jar' -f $fabricVersion)
+$forgeJar = Join-Path $forgeJarDirectory ('summy-enchantment-{0}.jar' -f $forgeVersion)
 $failures = [System.Collections.Generic.List[string]]::new()
 $checks = 0
 

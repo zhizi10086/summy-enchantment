@@ -595,7 +595,7 @@ jar {
 // 构建结束后把 reobf 后的 jar 复制到 MC mod/JAR 统一发布目录
 tasks.named('build') {
     doLast {
-        def releaseDir = file('../../../JAR/summy-enchantment-forge')
+        def releaseDir = file("../../../JAR/${project.minecraft_version}/summy-enchantment-forge")
         releaseDir.mkdirs()
         // 开启 JarJar 后，真正可发布的产物是 reobfJarJar（含嵌套的 MixinExtras）
         def reobfTask = tasks.findByName('reobfJarJar') ?: tasks.named('reobfJar').get()

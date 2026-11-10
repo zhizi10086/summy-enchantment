@@ -344,7 +344,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.1.jar`，构建结束后会自动复制到 `MC mod/JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.1.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
 >
