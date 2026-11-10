@@ -21,11 +21,11 @@ $fabricProperties = [System.IO.File]::ReadAllText(
     (Join-Path $RepoRoot 'fabric\gradle.properties'), $utf8)
 $forgeProperties = [System.IO.File]::ReadAllText(
     (Join-Path $RepoRoot 'forge\gradle.properties'), $utf8)
-if ($fabricProperties -notmatch '(?m)^mod_version=([^\r\n]+)$') {
+if ($fabricProperties -notmatch '(?m)^mod_version=([^\r\n]+)\r?$') {
     throw '无法从 fabric/gradle.properties 读取 mod_version'
 }
 $fabricVersion = $Matches[1].Trim()
-if ($forgeProperties -notmatch '(?m)^mod_version=([^\r\n]+)$') {
+if ($forgeProperties -notmatch '(?m)^mod_version=([^\r\n]+)\r?$') {
     throw '无法从 forge/gradle.properties 读取 mod_version'
 }
 $forgeVersion = $Matches[1].Trim()
