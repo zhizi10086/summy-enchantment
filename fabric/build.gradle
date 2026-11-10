@@ -112,10 +112,10 @@ tasks.named('sourcesJar') {
     }
 }
 
-// 构建结束后把 remap 后的 jar 复制到固定的发布目录（项目外的 ../JAR/summy-enchantment）
+// 构建结束后把 remap 后的 jar 复制到 MC mod/JAR 统一发布目录
 tasks.named('build') {
     doLast {
-        def releaseDir = file('../JAR/summy-enchantment')
+        def releaseDir = file('../../../JAR/summy-enchantment')
         releaseDir.mkdirs()
         copy {
             from tasks.named('remapJar').get().archiveFile

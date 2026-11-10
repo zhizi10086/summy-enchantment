@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
     $RepoRoot = Split-Path -Parent $scriptRoot
 }
 if ([string]::IsNullOrWhiteSpace($ReleaseRoot)) {
-    $ReleaseRoot = Join-Path $RepoRoot 'JAR'
+    $ReleaseRoot = Join-Path $RepoRoot '..\..\JAR'
 }
 
 $utf8 = [System.Text.Encoding]::UTF8

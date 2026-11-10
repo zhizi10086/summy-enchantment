@@ -19,7 +19,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 | 构建 | ForgeGradle 6 + MixinGradle 0.7.38 + MixinExtras 0.5.5（jar-in-jar）+ 官方映射 |
 | JDK | 17（`gradle.properties` / 全局 `~/.gradle/gradle.properties` 指定） |
 | 构建命令 | `gradlew build` |
-| 产物 | `JAR/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar` |
+| 产物 | `MC mod/JAR/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar` |
 
 构建相关的三个本地化处理（都在 `build.gradle` 内，注释有说明）：
 
@@ -612,7 +612,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.3.3.jar`，构建结束后会自动复制到 `../JAR/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.3.3.jar`，构建结束后会自动复制到 `MC mod/JAR/summy-enchantment/`。
 
 > `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
 

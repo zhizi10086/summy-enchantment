@@ -72,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 
 ## 8. 平台上传材料
 
-每个版本在本地 `JAR/summy-enchantment/_release-<版本>/` 归档：
+每个版本在本地 `MC mod/JAR/summy-enchantment/_release-<版本>/` 归档：
 
 - 双加载器正式 JAR
 - `Release 说明.md`

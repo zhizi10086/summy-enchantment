@@ -31,7 +31,7 @@ cd fabric
 ```bash
 cd forge
 ./gradlew build
-# 产物会复制到仓库根目录的 JAR/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar
+# 产物会复制到 MC mod/JAR/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar
 ```
 
 Forge 工程自带两个构建期保障（`gradlew build` 自动执行）：
