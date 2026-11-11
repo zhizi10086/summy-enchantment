@@ -1,9 +1,9 @@
 # Summy Enchantment
 
-本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.4.1）一致；
+本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.4.2）一致；
 两份源码因 Yarn 与 Mojang 官方映射不同而独立维护。
 
-Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
+Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html) 1.4.7 与 1.5.0+。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
 >
@@ -19,7 +19,7 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 | 构建 | ForgeGradle 6 + MixinGradle 0.7.38 + MixinExtras 0.5.5（jar-in-jar）+ 官方映射 |
 | JDK | 17（`gradle.properties` / 全局 `~/.gradle/gradle.properties` 指定） |
 | 构建命令 | `gradlew build` |
-| 产物 | `MC mod/JAR/1.20.1/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar` |
+| 产物 | `MC mod/JAR/1.20.1/summy-enchantment-forge/summy-enchantment-1.4.2-forge.jar` |
 
 构建相关的三个本地化处理（都在 `build.gradle` 内，注释有说明）：
 
@@ -43,6 +43,14 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
    `libs/rhino-forge-2001.2.3-build.10.jar` 只补足事件 API 的编译期父类。
    真实 KubeJS 脚本自检可通过 `gradlew runClient -Pdevcheck -PkubejsModsDir=<目录>` 启用。可用 `kubejsVersion`、`rhinoVersion`、`architecturyVersion` 参数切换测试版本，仓库内 `tools/kubejs-selftest/` 会自动复制到 `run/kubejs`。
    推荐使用 `gradlew verifyKubeJsSelfTest -Pdevcheck -PdevcheckMode=kubejs -PkubejsModsDir=<目录>` 自动断言 API、类过滤与七个事件。
+
+### 1.4.2-forge 矛兼容：Backported Spears 1.5.0+
+
+- 1.4.7 继续使用旧公式反解，避免其玩家 `pierce` 路径重复计算基础伤害。
+- 1.5.0+ 不再二次修正上游已修复的基础伤害，但仍恢复 `meleeSettled`、魔剑、嗜血与左键力量Plus。
+- 1.5.0+ 左键保持 `M × (基础伤害 + 冷却 × 附魔伤害)`，右键保持上游 `基础 + 附魔 + 速度`，不对右键追加力量Plus。
+- 专项自检使用 `gradlew verifySpearSelfTest -Pdevcheck -PdevcheckMode=spear "-PspearVersion=1.5.0" "-PdevcheckWorldDir=<世界目录>"`。1.4.7 与 1.5.0 各跑一次。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.2-forge.jar`（1.4.1 保留）。
 
 ### 1.4.1-forge 兼容性修复：Twilight Dusk 重力与饥饿容量
 
@@ -612,9 +620,9 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.1-forge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment-forge/`。
+产物：`build/libs/summy-enchantment-1.4.2-forge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment-forge/`。
 
-> `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
+> `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 
 ## 游戏内验收
 

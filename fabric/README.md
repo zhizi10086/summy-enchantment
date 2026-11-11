@@ -1,6 +1,6 @@
 # Summy Enchantment
 
-Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
+Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html) 1.4.7 与 1.5.0+。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
 >
@@ -18,6 +18,14 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Fabric API | 0.92.7+1.20.1 |
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
+
+## 1.4.2 矛兼容：Backported Spears 1.5.0+
+
+- 1.4.7 继续使用旧公式反解，避免其玩家 `pierce` 路径重复计算基础伤害。
+- 1.5.0+ 不再二次修正上游已修复的基础伤害，但仍恢复 `meleeSettled`、魔剑、嗜血与左键力量Plus。
+- 1.5.0+ 左键保持 `M × (基础伤害 + 冷却 × 附魔伤害)`，右键保持上游 `基础 + 附魔 + 速度`，不对右键追加力量Plus。
+- 专项自检使用 `gradlew verifySpearSelfTest -Pdevcheck -PdevcheckMode=spear "-PspearVersion=1.5.0" "-PdevcheckWorldDir=<世界目录>"`。1.4.7 与 1.5.0 各跑一次。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.2.jar`（1.4.1 保留）。
 
 ## 1.4.1 兼容性修复：Twilight Dusk 重力与饥饿容量
 
@@ -344,9 +352,9 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.1.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.2.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
 
-> `libs/spear-backport-fabric-1.4.7-1.20.1.jar` 是矛模组的 jar（CC0 许可），**只在编译期**用作兼容 Mixin 的目标类校验，不会打进本模组；删掉它会导致构建时 Mixin 注解处理器找不到目标类。
+> `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 >
 > `libs/kubejs-fabric-2001.6.5-build.16.jar` 同样只在编译期用于可选 KubeJS 插件，不进入发布 jar。
 > `libs/rhino-fabric-2001.2.3-build.10.jar` 为 KubeJS 事件 API 的编译期父类依赖，同样不进入发布 jar。

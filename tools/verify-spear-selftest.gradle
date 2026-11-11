@@ -1,0 +1,59 @@
+tasks.register('verifySpearSelfTest') {
+    group = 'verification'
+    description = '运行 Spears 专项客户端自检并校验 1.4.7 / 1.5.0 伤害、结算和 Mixin 日志。'
+    dependsOn 'runClient'
+    if (tasks.findByName('copySpearDevJar') != null) {
+        dependsOn 'copySpearDevJar'
+    }
+
+    doFirst {
+        if (!project.hasProperty('devcheck')) {
+            throw new GradleException('verifySpearSelfTest 需要 -Pdevcheck')
+        }
+        if ((project.findProperty('devcheckMode') ?: 'full') != 'spear') {
+            throw new GradleException('verifySpearSelfTest 需要 -PdevcheckMode=spear')
+        }
+        def spearVersion = project.findProperty('spearVersion')?.toString()
+        if (spearVersion != '1.4.7' && spearVersion != '1.5.0') {
+            throw new GradleException('verifySpearSelfTest 需要 -PspearVersion=1.4.7 或 1.5.0')
+        }
+        if (!file('run/saves/SeDevCheckWorld/level.dat').isFile()) {
+            throw new GradleException(
+                    '缺少 run/saves/SeDevCheckWorld。请使用 -PdevcheckWorldDir=<现成 SeDevCheckWorld 目录> 自动复制。'
+            )
+        }
+    }
+
+    doLast {
+        def logFile = file('run/logs/latest.log')
+        if (!logFile.isFile()) {
+            throw new GradleException('缺少 run/logs/latest.log')
+        }
+        def text = logFile.getText()
+        def expectedVersion = project.findProperty('spearVersion').toString()
+        def markers = [
+                "[SE-DEVCHECK] SPEAR_OK key=version version=${expectedVersion}",
+                '[SE-DEVCHECK] SPEAR_OK key=active',
+                '[SE-DEVCHECK] SPEAR_OK key=stab_plain',
+                '[SE-DEVCHECK] SPEAR_OK key=stab_sharp_2',
+                '[SE-DEVCHECK] SPEAR_OK key=stab_strength_1',
+                '[SE-DEVCHECK] SPEAR_OK key=settlement_primary',
+                '[SE-DEVCHECK] SPEAR_OK key=lifesteal',
+                '[SE-DEVCHECK] SPEAR_OK key=charge_plain',
+                '[SE-DEVCHECK] SPEAR_OK key=charge_sharp_2'
+        ]
+        if (project.name.contains('forge')) {
+            markers.add('summy_enchantment_spear_compat')
+        }
+        def failures = markers.findAll { !text.contains(it) }
+        if (text.contains('[SE-DEVCHECK] SPEAR_FAIL')) {
+            failures.add('日志包含 SPEAR_FAIL')
+        }
+        if (!failures.isEmpty()) {
+            failures.each { logger.error('[SE-SPEAR-SELFTEST] 缺少标记：{}', it) }
+            throw new GradleException("Spears 专项自检失败：缺少 ${failures.size()} 个标记")
+        }
+        logger.lifecycle('[SE-SPEAR-SELFTEST] ALL_OK：Spears {} 伤害、结算、力量Plus与 Mixin 均通过',
+                project.findProperty('spearVersion'))
+    }
+}

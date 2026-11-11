@@ -1,6 +1,6 @@
 # Summy Enchantment 全附魔总表
 
-> **适用版本**：1.4.1（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
+> **适用版本**：1.4.2（Fabric 与 Forge 两树功能一致，只有映射名与少数客户端实现类不同，详见各节"实现位置"）。
 > **数值口径**：文中数值都是**默认值**，实际以配置页或 `config/summy-enchantment.json` 为准；配置键后的括号里写默认值。
 > **命名空间**：本模组所有附魔 id 都是 `summy_enchantment:<id>`；语言键为 `enchantment.summy_enchantment.<id>`。
 > 相关专题（铁砧、力量Plus、伤害管线与限伤、粒子与提示、兼容性）见文末「机制附录」。
@@ -413,7 +413,7 @@
 **不受它影响、始终输出**的：启动横幅、`[SE] 矛/SR 兼容检查`、生命护盾属性自检、SR 近战兼容首次生效提示、
 旧客户端偏好降级提示，以及全部 WARN / ERROR。旧的 `debug_sr_compat` 键在 1.3.8 更名为 `debug_logs`（默认值也从开改为关），
 旧配置文件里的残留键会被静默忽略。
-- **Backported Spears（矛）**：修复其玩家分支"基础伤害算两遍"导致的伤害翻倍；左键刺击额外吃力量Plus。未安装矛模组时兼容代码不介入。
+- **Backported Spears（矛）**：1.4.7 修复其玩家分支"基础伤害算两遍"；1.5.0+ 直接使用上游已修复公式，但仍照常结算 KubeJS 事件、魔剑、嗜血和左键力量Plus。右键不吃力量Plus。其它版本安全放行但不启用 SE 结算。
 - **苹果皮（AppleSkin）**：大胃袋 HUD 使用**内置**的同款贴图，不装苹果皮也能看到金色描边；同时与"经典状态条"（Classic Bar）的 HUD 重绘兼容。
 
 ### 赋能组新增机制（1.3.8）
@@ -432,5 +432,5 @@
 
 - 附魔 **32** 个；配置 **99** 项，按功能域分成 **11 组**：核心机制 8 / 原版改动 5 / 武器附魔 12 / 弓弩与箭矢 12 / 生存与治疗 12 / 战斗状态 7 / 防御与耐久 7 / 食物与采集 7 / 粒子与特效 12 / 箭矢特性 8 / 赋能 9。
 - 网络协议版本 **9**；中英语言键各 **356** 条且一一对应。
-- 两树（Fabric `1.4.1` / Forge `1.4.1-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
-- 本文档以 **1.4.1 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。
+- 两树（Fabric `1.4.2` / Forge `1.4.2-forge`）**功能一致**，只是 Yarn / Mojang 映射名不同，Mixin 类名两树相同（Fabric 30 个、Forge 29 个）。客户端实现差异只有两处：**大胃袋 HUD**（Fabric `InGameHudMixin` 注入原版 HUD；Forge 改用 GUI overlay `ExtraHungerOverlay`）与**配置页入口**（Fabric 走 Mod Menu 的 `SummyEnchantmentModMenu`，Forge 走模组列表里的"配置"按钮，即 `ConfigScreenHandler.ConfigScreenFactory`）。
+- 本文档以 **1.4.2 的代码**为准；改动数值后请按"注册代码 / 配置枚举 / 客户端 `EnchantmentDescriptions` / 两树 README 专题"逐字段回来核对。

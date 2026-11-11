@@ -1,18 +1,18 @@
 # Summy Enchantment
 
-[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.4.1 Release 说明](docs/releases/1.4.1.md) · [许可证](LICENSE) · [第三方构建依赖](THIRD_PARTY_NOTICES.md)
+[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.4.2 Release 说明](docs/releases/1.4.2.md) · [许可证](LICENSE) · [第三方构建依赖](THIRD_PARTY_NOTICES.md)
 
 Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改为消耗经验点数，
 新增 32 个附魔（含锋利Plus）、11 组配置页（99 项）与可自定义的粒子特效；可选兼容矛
-[Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
+[Backported Spears](https://www.mcmod.cn/class/23213.html) 1.4.7 与 1.5.0+。作者：**Summy**。
 
 本仓库同时维护两个加载器版本。两份代码功能一致但**源码独立**——Fabric 用 Yarn 映射、
 Forge 用 Mojang 官方映射，无法共享同一份源码。
 
 | 目录 | 平台 | 版本 | 说明 |
 | --- | --- | --- | --- |
-| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.4.1` | 原始版本 |
-| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.4.1-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
+| [`fabric/`](fabric/README.md) | Fabric Loader 0.18.4 + Fabric API 0.92.7 | `1.4.2` | 原始版本 |
+| [`forge/`](forge/README.md) | Forge 47.4.10（ForgeGradle 6 + MixinExtras） | `1.4.2-forge` | 由 Fabric 版移植，含矛兼容与构建期自检 |
 
 ## 构建
 
@@ -23,7 +23,7 @@ Forge 用 Mojang 官方映射，无法共享同一份源码。
 ```bash
 cd fabric
 ./gradlew build
-# 产物：build/libs/summy-enchantment-1.4.1.jar
+# 产物：build/libs/summy-enchantment-1.4.2.jar
 ```
 
 ### Forge
@@ -31,7 +31,7 @@ cd fabric
 ```bash
 cd forge
 ./gradlew build
-# 产物会复制到 MC mod/JAR/1.20.1/summy-enchantment-forge/summy-enchantment-1.4.1-forge.jar
+# 产物会复制到 MC mod/JAR/1.20.1/summy-enchantment-forge/summy-enchantment-1.4.2-forge.jar
 ```
 
 Forge 工程自带两个构建期保障（`gradlew build` 自动执行）：
@@ -41,11 +41,19 @@ Forge 工程自带两个构建期保障（`gradlew build` 自动执行）：
 - 离线依赖：`forge/libs-m2/` 内置了 Mixin 注解处理器，配合 `libs/` 里的矛模组 jar，
   无需访问被墙的仓库也能编译。
 
-开发期验证矛兼容（把矛的生产 jar 反转成 dev 映射放进 `run/mods`）：
+开发期可用 `-PspearVersion=1.4.7|1.5.0` 切换矛测试版本。Forge 会先把对应生产 JAR
+反转成 dev 映射放进 `run/mods`：
 
 ```bash
 cd forge
 ./gradlew copySpearDevJar runServer
+```
+
+双加载器矛专项自动断言：
+
+```powershell
+./gradlew verifySpearSelfTest -Pdevcheck -PdevcheckMode=spear `
+  "-PspearVersion=1.5.0" "-PdevcheckWorldDir=<SeDevCheckWorld 目录>"
 ```
 
 ## 许可

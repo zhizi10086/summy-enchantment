@@ -3,6 +3,17 @@
 本文件从 1.3.10 起记录发布级变更。1.3.9 及更早版本的完整技术记录仍保留在
 Fabric 与 Forge 两份 README 的发布记录中。
 
+## 1.4.2
+
+### 矛兼容修复
+
+- 保留 Backported Spears 1.4.7 的旧公式反解。
+- 正式支持 Backported Spears 1.5.0+：不再二次修正上游已修复的基础伤害，同时恢复 SE 的 KubeJS 事件、魔剑、嗜血和左键力量Plus。
+- 1.5.0+ 左键目标值为 `力量倍率 × (基础伤害 + 冷却 × 附魔伤害)`；右键保持上游 `基础 + 附魔 + 速度`，不追加力量Plus。
+- 其它无法确认的矛版本继续安全放行，但不启用 SE 矛结算。
+- 新增 `devcheckMode=spear` 与 `verifySpearSelfTest`，分别验证 1.4.7 和 1.5.0 的伤害、结算及力量Plus。
+- 附魔仍 32、配置仍 99 项 / 11 组、协议仍 9；产物：`summy-enchantment-1.4.2.jar`、`summy-enchantment-1.4.2-forge.jar`（1.4.1 保留）。
+
 ## 1.4.1
 
 ### 兼容性修复

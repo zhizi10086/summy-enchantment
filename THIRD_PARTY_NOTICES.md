@@ -10,6 +10,8 @@
 | `rhino-forge-2001.2.3-build.10.jar` | Rhino Forge | MPL-2.0 | `FED2211429301BF043864183CAB9AB8E92D4CC4DBB9E488CE6C75217C54584A6` |
 | `spear-backport-fabric-1.4.7-1.20.1.jar` | Backported Spears Fabric | CC0-1.0（JAR 元数据） | `0BB965B95C59DB76EB4CD079FBD014ECDA103E3DF64ADD88FB38FC0491D802AD` |
 | `spear-backport-forge-1.4.7-1.20.1.jar` | Backported Spears Forge | CC0-1.0（上游声明；JAR 元数据为占位文本） | `54849B707AC5ECB121C57A22F3DE43CF790C60B4F36D5763D1A5CBDB4DE2AE9D` |
+| `spear-backport-fabric-1.5.0-1.20.1.jar` | Backported Spears Fabric | CC0-1.0（JAR 元数据） | `07F9333B5D71AE06138AD271A448C2B85F8FDBFD958D8E12C4C7C9E5B72B0393` |
+| `spear-backport-forge-1.5.0-1.20.1.jar` | Backported Spears Forge | CC0-1.0（上游声明；JAR 元数据为占位文本） | `00527496048819979B4E91699F2150AAC2ECE71CA673DEBAF0084D74BE02C7F3` |
 | `summy-reliquary-1.8.5-forge.jar` | Summy Reliquary | Custom non-commercial | `64DFB15E6AC9CB675000465F7CF4AFB95178D27424EEBFDCA10FCDC2BF09993D` |
 
 ## Upstream

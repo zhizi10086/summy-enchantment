@@ -73,8 +73,8 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 ## 8. 平台上传材料
 
 每个版本在本地 `MC mod/JAR/<Minecraft版本>/summy-enchantment/_release-<版本>/` 归档。
-例如 1.20.1 的 1.4.1 材料位于
-`MC mod/JAR/1.20.1/summy-enchantment/_release-1.4.1/`：
+例如 1.20.1 的 1.4.2 材料位于
+`MC mod/JAR/1.20.1/summy-enchantment/_release-1.4.2/`：
 
 - 双加载器正式 JAR
 - `Release 说明.md`

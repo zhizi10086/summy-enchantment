@@ -34,7 +34,7 @@ import java.util.List;
  */
 public final class EnchantmentFabricDevCheck {
 	private static final boolean ENABLED = Boolean.getBoolean("summy_enchantment.devcheck");
-	/** full = 完整兼容自检；kubejs = 只跑 KubeJS 桥接与脚本，避免外部前置缺失干扰。 */
+	/** full = 完整兼容自检；kubejs = KubeJS；spear = 矛模组专项。 */
 	private static final String MODE = System.getProperty("summy_enchantment.devcheck.mode", "full");
 	private static final int CLIENT_IDLE_STOP_TICKS = 1200;
 	private static final int CLIENT_TOTAL_STOP_TICKS = 6000;
@@ -74,6 +74,22 @@ public final class EnchantmentFabricDevCheck {
 		ServerPlayerEntity player = players.get(0);
 		serverTick++;
 		try {
+			if ("spear".equals(MODE)) {
+				if (!isLoaded("spears")) {
+					if (serverTick == 20) {
+						check("矛专项前置", false, "未安装 mod id=spears");
+						finish("缺少 Spears");
+					}
+					return;
+				}
+				SpearDevCheckResult result = SpearFabricDevCheck.tick(player, serverTick);
+				checks += result.checks();
+				FAILURES.addAll(result.failures());
+				if (serverTick == 280) {
+					finish("Fabric 矛兼容自检结束");
+				}
+				return;
+			}
 			if ("kubejs".equals(MODE)) {
 				if (serverTick == 40) {
 					checkKubeJSEvents(player);
