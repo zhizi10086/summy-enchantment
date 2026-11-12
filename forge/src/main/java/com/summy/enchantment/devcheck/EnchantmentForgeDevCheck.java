@@ -1,16 +1,26 @@
 package com.summy.enchantment.devcheck;
 
 import com.summy.enchantment.SummyEnchantment;
+import com.summy.enchantment.api.SummyEnchantmentApi;
 import com.summy.enchantment.combat.ArrowTraits;
+import com.summy.enchantment.combat.CombatFormulas;
+import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
+import com.summy.enchantment.compat.SummyReliquaryCompat;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModEnchantments;
+import com.summy.enchantment.registry.ModStatusEffects;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
@@ -22,16 +32,20 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.world.inventory.AnvilMenu;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * SE 的真实客户端开发自检。
@@ -39,7 +53,7 @@ import java.util.List;
  * <p>只通过 {@code gradlew runClient -Pdevcheck} 启用；测试世界会清理玩家背包与装备，
  * 因此只能使用专用存档 {@code SeDevCheckWorld}。正式 jar 不包含本包。
  */
-@Mod.EventBusSubscriber(modid = SummyEnchantment.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
+@EventBusSubscriber(modid = SummyEnchantment.MOD_ID, value = Dist.CLIENT)
 public final class EnchantmentForgeDevCheck {
 	private static final boolean ENABLED = Boolean.getBoolean("summy_enchantment.devcheck");
 	/** full = 完整兼容自检；kubejs = KubeJS；spear = 矛模组专项。 */
@@ -55,13 +69,16 @@ public final class EnchantmentForgeDevCheck {
 	private static int totalClientTicks;
 	private static int checks;
 	private static boolean finished;
+	private static Zombie electricPrimary;
+	private static Zombie electricSecondary;
+	private static Zombie electricTertiary;
 
 	private EnchantmentForgeDevCheck() {
 	}
 
 	@SubscribeEvent
-	public static void onServerTick(TickEvent.ServerTickEvent event) {
-		if (!ENABLED || event.phase != TickEvent.Phase.END) {
+	public static void onServerTick(ServerTickEvent.Post event) {
+		if (!ENABLED) {
 			return;
 		}
 		if (event.getServer().getPlayerList().getPlayers().isEmpty()) {
@@ -79,7 +96,7 @@ public final class EnchantmentForgeDevCheck {
 					}
 					return;
 				}
-				SpearDevCheckResult result = SpearForgeDevCheck.tick(player, serverTick);
+				SpearDevCheckResult result = SpearDevCheckBridge.tick(player, serverTick);
 				checks += result.checks();
 				FAILURES.addAll(result.failures());
 				if (serverTick == 280) {
@@ -92,6 +109,23 @@ public final class EnchantmentForgeDevCheck {
 					checkKubeJSEvents(player);
 				} else if (serverTick == 60) {
 					finish("KubeJS-only 自检结束");
+				}
+				return;
+			}
+			if ("core".equals(MODE)) {
+				switch (serverTick) {
+					case 20 -> prepareWorld(player);
+					case 40 -> checkCoreRules(player);
+					case 60 -> checkLifeShield(player);
+					case 80 -> checkLifeMending(player);
+					case 100 -> checkDeathsBlessing(player);
+					case 110 -> checkSoulGrace(player);
+					case 120 -> checkMeleeSettlement(player);
+					case 140 -> checkElectricBladeResult(player);
+					case 150 -> checkKubeJSEvents(player);
+					case 170 -> finish("核心自检结束");
+					default -> {
+					}
 				}
 				return;
 			}
@@ -115,8 +149,8 @@ public final class EnchantmentForgeDevCheck {
 	}
 
 	@SubscribeEvent
-	public static void onClientTick(TickEvent.ClientTickEvent event) {
-		if (!ENABLED || event.phase != TickEvent.Phase.END) {
+	public static void onClientTick(ClientTickEvent.Post event) {
+		if (!ENABLED) {
 			return;
 		}
 		Minecraft client = Minecraft.getInstance();
@@ -156,10 +190,118 @@ public final class EnchantmentForgeDevCheck {
 				+ "，Twilight Dusk=" + isLoaded("twilight_dusk"));
 		check("基础环境", level != null && player.isAlive(), "player=" + player.getName().getString());
 		check("破空之愿/本能释放双向互斥",
-				!ModEnchantments.SKY_WISH.isCompatibleWith(ModEnchantments.INSTINCTIVE_RELEASE)
-						&& !ModEnchantments.INSTINCTIVE_RELEASE.isCompatibleWith(ModEnchantments.SKY_WISH),
-				"sky_to_inst=" + ModEnchantments.SKY_WISH.isCompatibleWith(ModEnchantments.INSTINCTIVE_RELEASE)
-						+ " inst_to_sky=" + ModEnchantments.INSTINCTIVE_RELEASE.isCompatibleWith(ModEnchantments.SKY_WISH));
+				areMutuallyIncompatible(ModEnchantments.SKY_WISH, ModEnchantments.INSTINCTIVE_RELEASE),
+				"sky_to_inst=" + !compatible(ModEnchantments.SKY_WISH, ModEnchantments.INSTINCTIVE_RELEASE)
+						+ " inst_to_sky=" + !compatible(
+								ModEnchantments.INSTINCTIVE_RELEASE, ModEnchantments.SKY_WISH));
+	}
+
+	private static void checkCoreRules(ServerPlayer player) {
+		check("动态附魔 API 数量", SummyEnchantmentApi.enchantmentIds().size() == 32,
+				"size=" + SummyEnchantmentApi.enchantmentIds().size());
+		check("附魔等级元数据", SummyEnchantmentApi.enchantmentMaxLevel("sharpness_plus") == 5,
+				"sharpness_plus=" + SummyEnchantmentApi.enchantmentMaxLevel("sharpness_plus"));
+		check("宝藏与诅咒标签",
+				SummyEnchantmentApi.isTreasure("execution")
+						&& SummyEnchantmentApi.isTreasure("hidden_blade")
+						&& SummyEnchantmentApi.isCursed("life_mending"),
+				"execution=" + SummyEnchantmentApi.isTreasure("execution")
+						+ " hidden_blade=" + SummyEnchantmentApi.isTreasure("hidden_blade")
+						+ " life_mending=" + SummyEnchantmentApi.isCursed("life_mending"));
+		check("未知附魔查询安全", SummyEnchantmentApi.enchantmentMaxLevel("missing:missing") == 0
+						&& SummyEnchantmentApi.enchantmentRarity("missing:missing").isEmpty(),
+				"max=" + SummyEnchantmentApi.enchantmentMaxLevel("missing:missing"));
+
+		player.removeAllEffects();
+		player.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 200, 0, false, false, false));
+		check("原版力量重定向为自定义力量",
+				player.hasEffect(ModStatusEffects.STRENGTH) && !player.hasEffect(MobEffects.DAMAGE_BOOST),
+				"custom=" + player.hasEffect(ModStatusEffects.STRENGTH)
+						+ " vanilla=" + player.hasEffect(MobEffects.DAMAGE_BOOST));
+		check("力量Plus I 倍率", Math.abs(CombatFormulas.strengthMultiplier(player) - 1.5F) < 0.001F,
+				"multiplier=" + CombatFormulas.strengthMultiplier(player));
+		player.removeAllEffects();
+
+		var enchantments = player.serverLevel().registryAccess()
+				.registryOrThrow(Registries.ENCHANTMENT);
+		Holder<Enchantment> protection = enchantments.getHolder(Enchantments.PROTECTION).orElse(null);
+		check("保护最大等级为 V", protection != null && protection.value().getMaxLevel() == 5,
+				"max=" + (protection == null ? "missing" : protection.value().getMaxLevel()));
+
+		Holder<Enchantment> power = enchantments.getHolder(Enchantments.POWER).orElse(null);
+		boolean originalCrossbowCompat = com.summy.enchantment.config.SummyEnchantmentConfig.get()
+				.enableCrossbowCompat;
+		try {
+			com.summy.enchantment.config.SummyEnchantmentConfig.get().enableCrossbowCompat = true;
+			check("弓附魔可用于弩",
+					power != null && power.value().canEnchant(new ItemStack(Items.CROSSBOW)),
+					"power=" + (power != null));
+			check("SE 弩专属附魔可用于弩",
+					ModEnchantments.ARROW_VELOCITY.entry() != null
+							&& ModEnchantments.ARROW_VELOCITY.entry().value()
+									.canEnchant(new ItemStack(Items.CROSSBOW)),
+					"arrow_velocity=" + (ModEnchantments.ARROW_VELOCITY.entry() != null));
+		} finally {
+			com.summy.enchantment.config.SummyEnchantmentConfig.get()
+					.enableCrossbowCompat = originalCrossbowCompat;
+		}
+
+		Holder<Enchantment> loyalty = enchantments.getHolder(Enchantments.LOYALTY).orElse(null);
+		ItemStack trident = enchanted(Items.TRIDENT, loyalty, 1);
+		check("忠诚改版识别", EnchantmentEffects.isLoyaltyReworkActive(trident),
+				"loyalty=" + (loyalty != null));
+		player.getInventory().clearContent();
+		player.setItemSlot(EquipmentSlot.MAINHAND, trident);
+		EnchantmentEffects.setLoyaltyThrowCooldown(player);
+		check("忠诚假三叉戟冷却已登记", player.getCooldowns().isOnCooldown(Items.TRIDENT),
+				"cooling=" + player.getCooldowns().isOnCooldown(Items.TRIDENT));
+		EnchantmentEffects.tickLoyaltyCooldown(player);
+		check("无在飞假三叉戟时冷却撤销", !player.getCooldowns().isOnCooldown(Items.TRIDENT),
+				"cooling=" + player.getCooldowns().isOnCooldown(Items.TRIDENT));
+
+		AnvilMenu anvil = new AnvilMenu(1, player.getInventory());
+		check("铁砧菜单加载与点数成本入口", anvil.getCost() == 0, "cost=" + anvil.getCost());
+
+		EnchantmentEffects.clearHiddenBlade(player.getUUID());
+		player.setItemSlot(EquipmentSlot.MAINHAND,
+				enchanted(Items.IRON_SWORD, ModEnchantments.HIDDEN_BLADE, 1));
+		for (int i = 0; i < 20; i++) {
+			EnchantmentEffects.tickHiddenBlade(player);
+		}
+		check("藏剑蓄力累计",
+				EnchantmentEffects.hiddenBladeChargedTicks(player) == 20
+						&& EnchantmentEffects.hiddenBladeBonus(player) > 0.0F,
+				"ticks=" + EnchantmentEffects.hiddenBladeChargedTicks(player)
+						+ " bonus=" + EnchantmentEffects.hiddenBladeBonus(player));
+		EnchantmentEffects.onHiddenBladeSwing(player, null, false);
+		check("藏剑挥砍清空并进入冷却",
+				EnchantmentEffects.hiddenBladeChargedTicks(player) == 0
+						&& EnchantmentEffects.hiddenBladeCooldownRemaining(player) > 0,
+				"ticks=" + EnchantmentEffects.hiddenBladeChargedTicks(player)
+						+ " cooldown=" + EnchantmentEffects.hiddenBladeCooldownRemaining(player));
+		EnchantmentEffects.clearHiddenBlade(player.getUUID());
+
+		ArrowTraits.clearPlayer(player);
+		AbstractArrow arrow = EntityType.ARROW.create(player.serverLevel());
+		if (arrow == null) {
+			check("死亡之眼箭实体创建", false, "EntityType.ARROW.create=null");
+		} else {
+			arrow.moveTo(player.getX(), player.getY() + 1.0D, player.getZ(), 0.0F, 0.0F);
+			player.serverLevel().addFreshEntity(arrow);
+			ArrowTraits.markDeathEye(arrow, player);
+			Zombie target = spawnTarget(player, 100.0F, 100.0F);
+			ArrowTraits.recordHit(arrow, target);
+			check("死亡之眼命中加层",
+					ArrowTraits.hasDeathEye(arrow) && ArrowTraits.stacks(player.getUUID()) == 1,
+					"stacks=" + ArrowTraits.stacks(player.getUUID())
+							+ " multiplier=" + ArrowTraits.deathEyeMultiplier(arrow));
+			ArrowTraits.recordMiss(arrow);
+			check("死亡之眼落空清层", ArrowTraits.stacks(player.getUUID()) == 0,
+					"stacks=" + ArrowTraits.stacks(player.getUUID()));
+			target.discard();
+			arrow.discard();
+		}
+		player.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
 	}
 
 	/**
@@ -196,8 +338,11 @@ public final class EnchantmentForgeDevCheck {
 		check("大胃袋与饥饿值上限共存：满值时 needsFood=false", !food.needsFood(),
 				"food=" + food.getFoodLevel());
 
-		MobEffect nourishment = ForgeRegistries.MOB_EFFECTS.getValue(
-				new ResourceLocation("farmersdelight", "nourishment"));
+		Holder<MobEffect> nourishment = player.serverLevel().registryAccess()
+				.registryOrThrow(Registries.MOB_EFFECT)
+				.getHolder(ResourceKey.create(Registries.MOB_EFFECT,
+						ResourceLocation.fromNamespaceAndPath("farmersdelight", "nourishment")))
+				.orElse(null);
 		if (nourishment == null) {
 			check("Farmer's Delight 滋养效果已注册", false, "farmersdelight:nourishment=null");
 		} else {
@@ -264,7 +409,7 @@ public final class EnchantmentForgeDevCheck {
 	}
 
 	private static void checkLifeShield(ServerPlayer player) {
-		Enchantment celestial = external("celestial_enchantments", "life_shield");
+		Holder<Enchantment> celestial = external(player, "celestial_enchantments", "life_shield");
 		ItemStack both = enchanted(Items.IRON_CHESTPLATE, ModEnchantments.LIFE_SHIELD, 5);
 		if (celestial != null) {
 			both.enchant(celestial, 5);
@@ -298,7 +443,7 @@ public final class EnchantmentForgeDevCheck {
 	}
 
 	private static void checkLifeMending(ServerPlayer player) {
-		Enchantment apotheosis = external("apotheosis", "life_mending");
+		Holder<Enchantment> apotheosis = external(player, "apotheosis", "life_mending");
 		ItemStack chest = damaged(Items.IRON_CHESTPLATE, ModEnchantments.LIFE_MENDING, 3, 20);
 		ItemStack boots = apotheosis == null
 				? ItemStack.EMPTY
@@ -332,7 +477,7 @@ public final class EnchantmentForgeDevCheck {
 	}
 
 	private static void checkDeathsBlessing(ServerPlayer player) {
-		Enchantment majrusz = external("majruszsenchantments", "death_wish");
+		Holder<Enchantment> majrusz = external(player, "majruszsenchantments", "death_wish");
 		player.getInventory().clearContent();
 		player.setItemSlot(EquipmentSlot.CHEST,
 				enchanted(Items.IRON_CHESTPLATE, ModEnchantments.DEATHS_BLESSING, 1));
@@ -354,7 +499,7 @@ public final class EnchantmentForgeDevCheck {
 		player.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
 		Zombie victim = spawnTarget(player, 100.0F, 50.0F);
 		victim.setItemSlot(EquipmentSlot.CHEST,
-				enchanted(Items.PAPER, ModEnchantments.DEATHS_BLESSING, 1));
+				enchanted(Items.IRON_CHESTPLATE, ModEnchantments.DEATHS_BLESSING, 1));
 		if (majrusz != null) {
 			victim.setItemSlot(EquipmentSlot.MAINHAND,
 					enchanted(Items.IRON_SWORD, majrusz, 1));
@@ -367,6 +512,110 @@ public final class EnchantmentForgeDevCheck {
 
 		player.setHealth(player.getMaxHealth());
 		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void checkSoulGrace(ServerPlayer player) {
+		player.getInventory().clearContent();
+		player.removeAllEffects();
+		player.setItemSlot(EquipmentSlot.CHEST,
+				enchanted(Items.IRON_CHESTPLATE, ModEnchantments.SOUL_GRACE, 1));
+		player.addEffect(new MobEffectInstance(MobEffects.POISON, 200, 0));
+		player.setHealth(1.0F);
+		player.setAbsorptionAmount(0.0F);
+		player.invulnerableTime = 0;
+		boolean damaged = player.hurt(player.damageSources().generic(), 100.0F);
+		check("灵魂加护拦截致命伤害",
+				damaged && player.isAlive()
+						&& Math.abs(player.getHealth() - player.getMaxHealth()) < 0.01F,
+				"damaged=" + damaged + " alive=" + player.isAlive() + " health=" + player.getHealth());
+		check("灵魂加护清除负面并挂抗性",
+				!player.hasEffect(MobEffects.POISON) && player.hasEffect(MobEffects.DAMAGE_RESISTANCE),
+				"poison=" + player.hasEffect(MobEffects.POISON)
+						+ " resistance=" + player.hasEffect(MobEffects.DAMAGE_RESISTANCE));
+		check("灵魂加护冷却为内置计时显示", player.hasEffect(ModStatusEffects.SOUL_GRACE),
+				"display=" + player.hasEffect(ModStatusEffects.SOUL_GRACE));
+
+		EnchantmentEffects.clearSoulGraceCooldown(player.getUUID());
+		player.removeAllEffects();
+		player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
+		player.setHealth(player.getMaxHealth());
+	}
+
+	private static void checkMeleeSettlement(ServerPlayer player) {
+		player.getInventory().clearContent();
+		player.removeAllEffects();
+		player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
+		player.setHealth(10.0F);
+		player.setAbsorptionAmount(0.0F);
+		ItemStack weapon = enchanted(Items.IRON_SWORD, ModEnchantments.SPELLBLADE, 5);
+		weapon.enchant(ModEnchantments.LIFESTEAL.entry(), 3);
+		check("魔剑/嗜血公式",
+				Math.abs(EnchantmentEffects.spellbladeMagic(weapon, 10.0F) - 4.0F) < 0.001F
+						&& Math.abs(EnchantmentEffects.lifestealHeal(weapon, 10.0F) - 2.4F) < 0.001F,
+				"magic=" + EnchantmentEffects.spellbladeMagic(weapon, 10.0F)
+						+ " heal=" + EnchantmentEffects.lifestealHeal(weapon, 10.0F));
+
+		Zombie target = spawnTarget(player, 100.0F, 100.0F);
+		SummyReliquaryCompat.settleHit("devcheck", player, weapon, target,
+				player.damageSources().playerAttack(player), 10.0F, 10.0F,
+				true, false, false, true);
+		float lost = 100.0F - target.getHealth();
+		float healed = player.getHealth() - 10.0F;
+		check("魔剑追加伤害落地", Math.abs(lost - 4.0F) < 0.05F,
+				"lost=" + lost);
+		check("嗜血按实际伤害回复", Math.abs(healed - 2.4F) < 0.05F,
+				"healed=" + healed);
+		target.discard();
+
+		Zombie executable = spawnTarget(player, 100.0F, 10.0F);
+		ItemStack execution = enchanted(Items.IRON_SWORD, ModEnchantments.EXECUTION, 1);
+		boolean executed = EnchantmentEffects.tryExecuteReport(player, executable, execution);
+		check("斩杀阈值内补刀",
+				executed && (executable.isDeadOrDying() || executable.getHealth() <= 0.0F),
+				"executed=" + executed + " health=" + executable.getHealth());
+		executable.discard();
+
+		startElectricBlade(player);
+		player.setHealth(player.getMaxHealth());
+		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void startElectricBlade(ServerPlayer player) {
+		electricPrimary = spawnTarget(player, 100.0F, 100.0F);
+		electricSecondary = spawnTarget(player, 100.0F, 100.0F);
+		electricTertiary = spawnTarget(player, 100.0F, 100.0F);
+		electricPrimary.moveTo(player.getX() + 3.0D, player.getY(), player.getZ(), 0.0F, 0.0F);
+		electricSecondary.moveTo(player.getX() + 4.0D, player.getY(), player.getZ(), 0.0F, 0.0F);
+		electricTertiary.moveTo(player.getX() + 5.0D, player.getY(), player.getZ(), 0.0F, 0.0F);
+		ItemStack weapon = enchanted(Items.IRON_SWORD, ModEnchantments.ELECTRIC_BLADE, 4);
+		ElectricArc.start(player, electricPrimary, weapon, 10.0F, Set.of(electricPrimary.getId()));
+	}
+
+	private static void checkElectricBladeResult(ServerPlayer player) {
+		float secondLost = electricSecondary == null ? 0.0F : 100.0F - electricSecondary.getHealth();
+		float thirdLost = electricTertiary == null ? 0.0F : 100.0F - electricTertiary.getHealth();
+		check("电刀跨 tick 链式衰减",
+				Math.abs(secondLost - 8.0F) < 0.05F && Math.abs(thirdLost - 6.4F) < 0.05F,
+				"second=" + secondLost + " third=" + thirdLost + " primaryHealth="
+						+ (electricPrimary == null ? "null" : electricPrimary.getHealth()));
+		discardElectricTargets();
+		player.setHealth(player.getMaxHealth());
+		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void discardElectricTargets() {
+		if (electricPrimary != null) {
+			electricPrimary.discard();
+		}
+		if (electricSecondary != null) {
+			electricSecondary.discard();
+		}
+		if (electricTertiary != null) {
+			electricTertiary.discard();
+		}
+		electricPrimary = null;
+		electricSecondary = null;
+		electricTertiary = null;
 	}
 
 	/** 只触发全部 KubeJS 只读事件；无 KubeJS 时核心桥自动短路。 */
@@ -407,6 +656,8 @@ public final class EnchantmentForgeDevCheck {
 		zombie.setHealth(health);
 		zombie.setDeltaMovement(Vec3.ZERO);
 		zombie.invulnerableTime = 0;
+		zombie.addEffect(new MobEffectInstance(
+				MobEffects.FIRE_RESISTANCE, 1200, 0, false, false, false));
 		// 让测试僵尸具备正常战斗实体应有的“已完成首次 tick”状态；
 		// SE 在 tickCount=0 时会跳过装备附魔读取，避免构造阶段装备栏尚未建立导致空指针。
 		zombie.tickCount = 1;
@@ -414,7 +665,23 @@ public final class EnchantmentForgeDevCheck {
 		return zombie;
 	}
 
-	private static ItemStack enchanted(Item item, Enchantment enchantment, int level) {
+	private static boolean areMutuallyIncompatible(EnchantmentRef first, EnchantmentRef second) {
+		return first.entry() != null && second.entry() != null
+				&& !compatible(first, second) && !compatible(second, first);
+	}
+
+	private static boolean compatible(EnchantmentRef first, EnchantmentRef second) {
+		Holder<Enchantment> firstEntry = first.entry();
+		Holder<Enchantment> secondEntry = second.entry();
+		return firstEntry == null || secondEntry == null
+				|| Enchantment.areCompatible(firstEntry, secondEntry);
+	}
+
+	private static ItemStack enchanted(Item item, EnchantmentRef enchantment, int level) {
+		return enchanted(item, enchantment.entry(), level);
+	}
+
+	private static ItemStack enchanted(Item item, Holder<Enchantment> enchantment, int level) {
 		ItemStack stack = new ItemStack(item);
 		if (enchantment != null) {
 			stack.enchant(enchantment, level);
@@ -422,22 +689,30 @@ public final class EnchantmentForgeDevCheck {
 		return stack;
 	}
 
-	private static ItemStack damaged(Item item, Enchantment enchantment, int level, int damage) {
+	private static ItemStack damaged(Item item, EnchantmentRef enchantment, int level, int damage) {
+		return damaged(item, enchantment.entry(), level, damage);
+	}
+
+	private static ItemStack damaged(Item item, Holder<Enchantment> enchantment, int level, int damage) {
 		ItemStack stack = enchanted(item, enchantment, level);
 		stack.setDamageValue(Math.min(damage, stack.getMaxDamage() - 1));
 		return stack;
 	}
 
-	private static Enchantment external(String namespace, String path) {
-		return ForgeRegistries.ENCHANTMENTS.getValue(new ResourceLocation(namespace, path));
+	private static Holder<Enchantment> external(ServerPlayer player, String namespace, String path) {
+		return player.serverLevel().registryAccess()
+				.registryOrThrow(Registries.ENCHANTMENT)
+				.getHolder(ResourceKey.create(Registries.ENCHANTMENT,
+						ResourceLocation.fromNamespaceAndPath(namespace, path)))
+				.orElse(null);
 	}
 
 	private static boolean isLoaded(String modId) {
-		return net.minecraftforge.fml.ModList.get().isLoaded(modId);
+		return ModList.get().isLoaded(modId);
 	}
 
 	private static String modVersion(String modId) {
-		return net.minecraftforge.fml.ModList.get().getModContainerById(modId)
+		return ModList.get().getModContainerById(modId)
 				.map(container -> container.getModInfo().getVersion().toString())
 				.orElse("missing");
 	}

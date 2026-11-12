@@ -81,6 +81,9 @@ public final class EnchantmentEffects {
 	private static final Identifier QUICK_STRIKE_MODIFIER_ID = SummyEnchantment.id("quick_strike");
 	/** 死者之心的最大生命修饰符 id */
 	private static final Identifier DEAD_MANS_HEART_MODIFIER_ID = SummyEnchantment.id("dead_mans_heart");
+	/** 1.21.1 吸收值受最大吸收属性限制；SE 护盾单独贡献一份容量。 */
+	private static final Identifier LIFE_SHIELD_CAP_MODIFIER_ID =
+			SummyEnchantment.id("life_shield_absorption_cap");
 	/** 复仇窗口：玩家 UUID → 窗口结束的世界 tick */
 	private static final Map<UUID, Long> REVENGE_WINDOW = new ConcurrentHashMap<>();
 	/** 灵魂加护冷却：玩家 UUID → 可再次触发的世界 tick */
@@ -1002,6 +1005,7 @@ public final class EnchantmentEffects {
 		if (delta <= 0.0F) {
 			return;
 		}
+		syncLifeShieldAbsorptionCap(entity, lifeShield(entity));
 		float total = quantizeShield(Math.max(0.0F, entity.getAbsorptionAmount() + delta));
 		entity.setAbsorptionAmount(total);
 		SHIELD_TRACK.put(entity, total);
@@ -1049,10 +1053,10 @@ public final class EnchantmentEffects {
 
 		// 1) 我方护盾缩小：只从池子里扣掉"缩减的那一份"，不动其它来源
 		if (shield < shieldValue - 1.0E-3F) {
-			setLifeShield(entity, shield);
 			float shrink = shieldValue - shield;
 			float total = quantizeShield(Math.max(0.0F, entity.getAbsorptionAmount() - shrink));
 			entity.setAbsorptionAmount(total);
+			setLifeShield(entity, shield);
 			SHIELD_TRACK.put(entity, total);
 			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "cap",
 					shieldValue, shield, Math.max(0.0F, cap));
@@ -1104,6 +1108,7 @@ public final class EnchantmentEffects {
 		float observed = entity.getAbsorptionAmount();
 		if (observed + 1.0E-3F < shield) {
 			float target = quantizeShield(shield);
+			syncLifeShieldAbsorptionCap(entity, shield);
 			entity.setAbsorptionAmount(target);
 			SHIELD_TRACK.put(entity, target);
 			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "restore",
@@ -1145,6 +1150,14 @@ public final class EnchantmentEffects {
 		}
 		applyModifier(entity, EntityAttributes.GENERIC_ATTACK_SPEED, QUICK_STRIKE_MODIFIER_ID,
 				EntityAttributeModifier.Operation.ADD_VALUE, speedBonus);
+
+		applyModifier(entity, EntityAttributes.GENERIC_MAX_ABSORPTION, LIFE_SHIELD_CAP_MODIFIER_ID,
+				EntityAttributeModifier.Operation.ADD_VALUE, lifeShield(entity));
+	}
+
+	private static void syncLifeShieldAbsorptionCap(LivingEntity entity, float shield) {
+		applyModifier(entity, EntityAttributes.GENERIC_MAX_ABSORPTION, LIFE_SHIELD_CAP_MODIFIER_ID,
+				EntityAttributeModifier.Operation.ADD_VALUE, shield);
 	}
 
 	private static void applyModifier(LivingEntity entity, RegistryEntry<EntityAttribute> attribute, Identifier id,
@@ -1304,10 +1317,12 @@ public final class EnchantmentEffects {
 		float shield = lifeShield(entity);
 		float cap = lifeShieldCap(entity);
 		SHIELD_TRACK.remove(entity);
-		setLifeShield(entity, 0.0F);
 		if (shield > 0.0F) {
 			entity.setAbsorptionAmount(quantizeShield(Math.max(0.0F, entity.getAbsorptionAmount() - shield)));
+			setLifeShield(entity, 0.0F);
 			SummyEnchantmentScriptHooks.fireLifeShieldChanged(entity, "clear", shield, 0.0F, cap);
+		} else {
+			setLifeShield(entity, 0.0F);
 		}
 	}
 

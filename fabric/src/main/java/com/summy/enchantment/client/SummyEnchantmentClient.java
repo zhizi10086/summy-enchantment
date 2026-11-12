@@ -111,7 +111,7 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 
 		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
 			if (client.world != null) {
-				EnchantmentRef.bindRegistry(
+				EnchantmentRef.bindClientRegistry(
 						client.world.getRegistryManager().get(RegistryKeys.ENCHANTMENT));
 			}
 		});

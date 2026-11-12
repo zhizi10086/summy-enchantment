@@ -158,7 +158,8 @@ public final class ElectricArc {
 		}
 		// 每段基数：上一段金额 × 倍率（默认 0.8）
 		float ratio = Math.max(0.0F, config.electricBladeDamageRatio);
-		float amount = pending.amount * ratio;
+		float amount = pending.amount
+				* (float) Math.pow(ratio, pending.completedSegments + 1);
 		if (amount <= 0.0F) {
 			return "no_target";
 		}

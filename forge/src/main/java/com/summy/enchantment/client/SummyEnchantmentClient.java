@@ -17,11 +17,13 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 
 import java.util.List;
@@ -33,7 +35,7 @@ import java.util.List;
  * 注册物品提示、客户端 tick（本能释放 + 粒子偏好重试）、断线回调，
  * 并把配置界面挂到 Forge 的 mods 列表"配置"按钮上（取代 Fabric 的 Mod Menu 集成）。
  */
-@EventBusSubscriber(modid = SummyEnchantment.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+@EventBusSubscriber(modid = SummyEnchantment.MOD_ID, value = Dist.CLIENT)
 public final class SummyEnchantmentClient {
 	/** 粒子偏好是否还没成功上报（改设置或进服时置位，成功发送后清零） */
 	private static boolean particlePreferenceDirty = true;
@@ -47,7 +49,7 @@ public final class SummyEnchantmentClient {
 	private SummyEnchantmentClient() {
 	}
 
-	public static void init() {
+	public static void init(ModContainer modContainer) {
 		// 物品提示（附魔书 / 装备 Shift 展开）
 		NeoForge.EVENT_BUS.addListener(SummyEnchantmentClient::onItemTooltip);
 		// 本能释放：客户端也做同样的检测，保证拉弓动画与使用状态即时结束/重开
@@ -61,6 +63,8 @@ public final class SummyEnchantmentClient {
 		ClientNetworkCallbacks.setParticleRequestHandler(SummyEnchantmentClient::onParticleRequest);
 
 		// mods 列表里的"配置"按钮
+		modContainer.registerExtensionPoint(IConfigScreenFactory.class,
+				(container, parent) -> new SummyEnchantmentConfigScreen(parent));
 	}
 
 	@SubscribeEvent
@@ -134,7 +138,8 @@ public final class SummyEnchantmentClient {
 			return;
 		}
 		if (client.level != null) {
-			EnchantmentRef.bindRegistry(client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
+			EnchantmentRef.bindClientRegistry(
+					client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
 		}
 		EnchantmentEffects.tickInstinctiveRelease(client.player);
 		// 进服后尽快上报粒子偏好；通道还没就绪就下一 tick 继续重试

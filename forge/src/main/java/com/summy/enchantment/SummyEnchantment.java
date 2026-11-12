@@ -12,6 +12,7 @@ import com.summy.enchantment.registry.ModStatusEffects;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
@@ -28,7 +29,7 @@ public class SummyEnchantment {
 	public static final String MOD_ID = "summy_enchantment";
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
-	public SummyEnchantment(IEventBus modBus) {
+	public SummyEnchantment(IEventBus modBus, ModContainer modContainer) {
 		// 必须先读配置：自定义附魔的上限、保护上限都在运行时查询配置
 		SummyEnchantmentConfig.load();
 
@@ -49,7 +50,7 @@ public class SummyEnchantment {
 		SummyEnchantmentEvents.register();
 
 		if (FMLEnvironment.dist == Dist.CLIENT) {
-			com.summy.enchantment.client.SummyEnchantmentClient.init();
+			com.summy.enchantment.client.SummyEnchantmentClient.init(modContainer);
 		}
 
 		ExternalEnchantmentCompat.logCompatibilityPolicies();

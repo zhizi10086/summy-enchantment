@@ -49,7 +49,8 @@ public final class SummyEnchantmentEvents {
 	}
 
 	private static void onServerStarted(ServerStartedEvent event) {
-		EnchantmentRef.bindRegistry(event.getServer().registryAccess().registryOrThrow(Registries.ENCHANTMENT));
+		EnchantmentRef.bindServerRegistry(
+				event.getServer().registryAccess().registryOrThrow(Registries.ENCHANTMENT));
 	}
 
 	private static void onRegisterCommands(RegisterCommandsEvent event) {

@@ -5,6 +5,7 @@ plugins {
 
 version = project.mod_version
 group = project.maven_group
+def coreDevcheckEnabled = project.hasProperty('coreDevcheck')
 
 base {
     archivesName = project.archives_base_name
@@ -53,6 +54,22 @@ loom {
     mixin {
         useLegacyMixinAp = false
     }
+    runs {
+        client {
+            if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
+                property 'summy_enchantment.devcheck', 'true'
+                property 'summy_enchantment.devcheck.mode',
+                        project.findProperty('devcheckMode')
+                                ?: (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full')
+            }
+        }
+    }
+}
+
+tasks.named('runClient') {
+    if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
+        args '--quickPlaySingleplayer', 'SeDevCheckWorld'
+    }
 }
 
 dependencies {
@@ -86,7 +103,12 @@ if (project.hasProperty('coreOnly')) {
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    if (!coreDevcheckEnabled) {
+        sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    } else {
+        // 核心自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
+        sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearFabricDevCheck.java'
+    }
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
@@ -130,7 +152,7 @@ java {
 }
 
 jar {
-    if (!project.hasProperty('devcheck')) {
+    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
     from('LICENSE') {
@@ -139,7 +161,7 @@ jar {
 }
 
 tasks.named('sourcesJar') {
-    if (!project.hasProperty('devcheck')) {
+    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
 }

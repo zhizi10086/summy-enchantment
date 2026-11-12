@@ -11,6 +11,7 @@ tasks.named('wrapper', Wrapper).configure {
 
 version = project.mod_version
 group = project.maven_group
+def coreDevcheckEnabled = project.hasProperty('coreDevcheck')
 
 base {
     archivesName = project.archives_base_name
@@ -98,10 +99,11 @@ neoForge {
         client {
             client()
             gameDirectory = project.file('run')
-            if (project.hasProperty('devcheck')) {
+            if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
                 systemProperty 'summy_enchantment.devcheck', 'true'
                 systemProperty 'summy_enchantment.devcheck.mode',
-                        project.findProperty('devcheckMode') ?: 'full'
+                        project.findProperty('devcheckMode')
+                                ?: (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full')
                 programArguments.addAll '--quickPlaySingleplayer', 'SeDevCheckWorld'
             }
         }
@@ -128,7 +130,12 @@ dependencies {
 if (project.hasProperty('coreOnly')) {
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    if (!coreDevcheckEnabled) {
+        sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    } else {
+        // 核心自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
+        sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearForgeDevCheck.java'
+    }
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
@@ -156,7 +163,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    if (!project.hasProperty('devcheck')) {
+    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
     from('LICENSE') {

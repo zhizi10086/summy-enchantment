@@ -2,6 +2,7 @@ package com.summy.enchantment.mixin;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import com.llamalad7.mixinextras.sugar.Local;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.HungerOwner;
 import net.minecraft.world.food.FoodData;
@@ -50,10 +51,11 @@ public abstract class HungerManagerMixin implements HungerOwner {
 	 * {@code min(当前饥饿值 + 食物营养, SE上限)}。这样双方实际容量自然取较高值。
 	 */
 	@ModifyExpressionValue(
-			method = "eat(IF)V",
-			at = @At(value = "INVOKE", target = "Ljava/lang/Math;min(II)I")
+			method = "add(IF)V",
+			at = @At(value = "INVOKE", target = "Lnet/minecraft/util/Mth;clamp(III)I")
 	)
-	private int summyEnchantment$extendFoodCap(int original, int nutrition) {
+	private int summyEnchantment$extendFoodCap(
+			int original, @Local(argsOnly = true, index = 1) int nutrition) {
 		int desired = Math.min(this.foodLevel + nutrition, summyEnchantment$foodLevelCap());
 		return Math.max(original, desired);
 	}
