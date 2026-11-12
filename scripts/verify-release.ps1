@@ -115,8 +115,8 @@ $compatibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'docs\compat
 Check-Release 'Fabric source version' (-not [string]::IsNullOrWhiteSpace($fabricVersion)) $fabricVersion
 Check-Release 'Forge source version' (-not [string]::IsNullOrWhiteSpace($forgeVersion)) $forgeVersion
 Check-Release 'Release notes scale' ($releaseNotes -match '32.*99.*11') '32/99/11'
-Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*19.*0') 'Forge 19/0'
-Check-Release 'Compatibility record' ($compatibility -match 'Forge.*19.*0') 'Forge 19/0 client check'
+Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*13.*0') 'Forge 13/0'
+Check-Release 'Compatibility record' ($compatibility -match 'Forge.*13.*0') 'Forge 13/0 client check'
 Check-Release 'No local absolute paths in public docs' (-not (($releaseNotes + $compatibility) -match '[A-Z]:\\')) 'docs/releases + docs/compatibility'
 
 if ($failures.Count -eq 0) {

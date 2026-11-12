@@ -29,6 +29,15 @@ apply plugin: 'org.spongepowered.mixin'
 version = project.mod_version
 group = project.maven_group
 
+def spearVersion = (project.findProperty('spearVersion') ?: '1.5.0').toString()
+if (spearVersion != '1.4.7' && spearVersion != '1.5.0') {
+    throw new GradleException("spearVersion 仅支持 1.4.7 或 1.5.0，当前为 ${spearVersion}")
+}
+def spearJar = file("libs/spear-backport-forge-${spearVersion}-1.20.1.jar")
+if (!spearJar.exists()) {
+    throw new GradleException("缺少矛模组编译/自检 JAR：${spearJar}")
+}
+
 base {
     archivesName = project.archives_base_name
 }
@@ -144,7 +153,7 @@ dependencies {
 
     // 矛模组 Backported Spears（Forge 版）：仅编译期，用于校验兼容 Mixin 的目标类；
     // 运行期完全可选 —— 没装矛模组时整份兼容配置被 SpearMixinPlugin 跳过。
-    compileOnly files('libs/spear-backport-forge-1.4.7-1.20.1.jar')
+    compileOnly files(spearJar)
     // Summy Reliquary（Forge 版）：同样仅编译期 —— @Mixin(targets = ...) 需要目标类出现在
     // 编译类路径上，否则注解处理器会直接报 "Mixin target ... could not be found"。
     // 运行期完全可选，没装 SR 时整份兼容配置被 SummyReliquaryMixinPlugin 跳过。
@@ -177,7 +186,7 @@ configurations {
 }
 
 dependencies {
-    spearDev fg.deobf('spear-backport-forge:spear-backport-forge:1.4.7-1.20.1')
+    spearDev fg.deobf("spear-backport-forge:spear-backport-forge:${spearVersion}-1.20.1")
     if (project.hasProperty('externalModsDir')) {
         // 文件名必须遵循 <name>-<version>.jar；测试目录中的官方包会先规范化文件名。
         externalCompatDev fg.deobf('celestial_enchantments:celestial_enchantments:1.3.7')
@@ -194,6 +203,13 @@ dependencies {
 tasks.register('copySpearDevJar', Copy) {
     from configurations.spearDev
     into layout.projectDirectory.dir('run/mods')
+    doFirst {
+        def modsDir = layout.projectDirectory.dir('run/mods').asFile
+        if (modsDir.isDirectory()) {
+            modsDir.listFiles()?.findAll { it.isFile() && it.name.startsWith('spear-backport-forge-') }
+                    ?.each { it.delete() }
+        }
+    }
 }
 
 tasks.register('copyExternalCompatDevJars', Copy) {
@@ -220,6 +236,7 @@ if (project.hasProperty('kubejsModsDir')) {
 }
 
 apply from: file('../tools/verify-kubejs-selftest.gradle')
+apply from: file('../tools/verify-spear-selftest.gradle')
 
 // Summy Reliquary 同样只有生产 jar（SRG 名），dev 环境直接读会因继承链对不上而失败，
 // 所以照矛的做法额外生成一份 deobf 版本给 runServer / runClient 用（不进产物，不影响 build）。
@@ -432,8 +449,9 @@ tasks.register('verifyMixinTargets') {
 
         // 取"目标类里指定方法"体内的 INVOKE 集合（owner.name(desc)）。
         // 注意 @At 匹配的是"目标方法体内那条调用指令"，不是被调用类自身的方法——这点之前搞错过。
-        def invokesInMethod = { String classInternal, String methodName, String methodDesc ->
-            def located = libClassIndex[classInternal] ?: mcClassIndex[classInternal]
+        def invokesInMethod = { String classInternal, String methodName, String methodDesc,
+                List locatedOverride ->
+            def located = locatedOverride ?: (libClassIndex[classInternal] ?: mcClassIndex[classInternal])
             if (located == null) {
                 return null
             }
@@ -471,6 +489,10 @@ tasks.register('verifyMixinTargets') {
             }
             return [matched: matchedFlag[0], invokes: found]
         }
+
+        def spearJars = fileTree('libs') {
+            include 'spear-backport-forge-*-1.20.1.jar'
+        }.files.sort { it.name }
 
         // refmap 的值形如 "Lowner;name(desc)ret"，归一成 "owner.name(desc)ret" 便于比对
         def normalizeMember = { String member ->
@@ -514,9 +536,37 @@ tasks.register('verifyMixinTargets') {
                 def methodKeys = (text =~ /method\s*=\s*"([^"]+)"/).collect { it[1] } as Set
                 def atTargets = (text =~ /target\s*=\s*"(L[^"]+)"/).collect { it[1] } as Set
 
+                if (cls == 'SpearItemCompatMixin') {
+                    if (spearJars.size() != 2) {
+                        problems << "$cls: libs 中应同时存在 1.4.7 与 1.5.0 的 Forge 矛 JAR，实际 ${spearJars*.name}"
+                    }
+                    methodKeys.each { mk ->
+                        def split = splitMember(byMixin[mk] ?: mk)
+                        spearJars.each { jarFile ->
+                            def result = invokesInMethod(
+                                    targetInternal,
+                                    split.name,
+                                    split.desc,
+                                    [jarFile, targetInternal + '.class']
+                            )
+                            if (result == null || !result.matched) {
+                                problems << "$cls: ${jarFile.name} 中找不到目标方法 ${split.name}${split.desc ?: ''}"
+                                return
+                            }
+                            atTargets.each { raw ->
+                                def expected = normalizeMember(byMixin[raw] ?: raw)
+                                if (!result.invokes.contains(expected)) {
+                                    problems << "$cls: ${jarFile.name} 的 ${split.name} 体内没有对 $expected 的调用"
+                                }
+                            }
+                        }
+                    }
+                    return
+                }
+
                 methodKeys.each { mk ->
                     def split = splitMember(byMixin[mk] ?: mk)
-                    def result = invokesInMethod(targetInternal, split.name, split.desc)
+                    def result = invokesInMethod(targetInternal, split.name, split.desc, null)
                     if (result == null) {
                         problems << "$cls: 目标类 $targetInternal 在 libs 或 Minecraft jar 里找不到"
                         return
@@ -559,6 +609,8 @@ tasks.register('verifyMixinTargets') {
         if (!problems.isEmpty()) {
             throw new GradleException('verifyMixinTargets 失败：\n  - ' + problems.join('\n  - '))
         }
+        logger.lifecycle('[Summy Enchantment] Spears Mixin targets checked: {}',
+                spearJars*.name.join(', '))
         logger.lifecycle("[Summy Enchantment] mixin 注入目标校验通过（${mixinDir.listFiles().length} 个文件）")
     }
 }

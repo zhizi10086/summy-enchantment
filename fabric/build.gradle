@@ -6,6 +6,15 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
+def spearVersion = (project.findProperty('spearVersion') ?: '1.5.0').toString()
+if (spearVersion != '1.4.7' && spearVersion != '1.5.0') {
+    throw new GradleException("spearVersion 仅支持 1.4.7 或 1.5.0，当前为 ${spearVersion}")
+}
+def spearJar = file("libs/spear-backport-fabric-${spearVersion}-1.20.1.jar")
+if (!spearJar.exists()) {
+    throw new GradleException("缺少矛模组编译/自检 JAR：${spearJar}")
+}
+
 base {
     archivesName = project.archives_base_name
 }
@@ -36,7 +45,11 @@ dependencies {
     // 矛模组 Backported Spears：**只在编译期**用于让 Mixin 注解处理器能校验兼容 Mixin 的目标类
     // （生产 jar 是 intermediary 名，必须用 modCompileOnly 让 Loom 重映射成 yarn 名才能解析继承链）。
     // 该模组是 CC0 许可，jar 放在 libs/ 便于复现构建；运行期完全可选（没装矛模组时兼容代码不生效）。
-    modCompileOnly files('libs/spear-backport-fabric-1.4.7-1.20.1.jar')
+    modCompileOnly files(spearJar)
+    if (project.hasProperty('devcheck')) {
+        // devcheck 的实际运行版本由 -PspearVersion 控制；Loom 负责生产 JAR 的开发态重映射。
+        modRuntimeOnly files(spearJar)
+    }
 
     // Summy Reliquary：它只产出 Forge 版 jar，这里只用于让注解处理器能解析兼容 Mixin 的
     // @Mixin(targets = ...)；不进产物、也不参与 Loom 重映射，运行期由 Kilt/Connector 提供真实类。
@@ -149,6 +162,7 @@ if (project.hasProperty('kubejsModsDir')) {
 }
 
 apply from: file('../tools/verify-kubejs-selftest.gradle')
+apply from: file('../tools/verify-spear-selftest.gradle')
 
 // Majrusz Library 的开发态 ClassFinder 只扫描 run/libs 与 run/mods。
 // Loom 负责把类本身重映射并加入类路径，这里保留官方原包供其扫描。
