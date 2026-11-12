@@ -86,6 +86,6 @@ public interface SummyEnchantmentKubeJSEvents {
 	}
 
 	private static boolean hasListeners(EventHandler handler) {
-		return handler.hasListeners(ScriptType.SERVER);
+		return handler.hasListeners();
 	}
 }

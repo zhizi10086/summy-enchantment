@@ -1,13 +1,13 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 
 /** KubeJS 只读事件：电刀弹射的一段伤害尝试已完成。 */
-public final class ElectricArcSettledEventJS extends EventJS {
+public final class ElectricArcSettledEventJS implements KubeEvent {
 	private final long chainId;
 	private final int segmentIndex;
 	private final int totalSegments;

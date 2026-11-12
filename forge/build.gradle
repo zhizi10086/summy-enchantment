@@ -12,6 +12,18 @@ tasks.named('wrapper', Wrapper).configure {
 version = project.mod_version
 group = project.maven_group
 def coreDevcheckEnabled = project.hasProperty('coreDevcheck')
+def spearDevcheck = project.hasProperty('spearDevcheck')
+def kubejsDevcheck = project.hasProperty('kubejsDevcheck')
+def spearOnly = project.hasProperty('spearOnly') || spearDevcheck
+def kubejsOnly = project.hasProperty('kubejsOnly') || kubejsDevcheck
+def isolatedCompatBuild = project.hasProperty('coreOnly') || spearOnly || kubejsOnly
+def spearJar = file('libs/spear-backport-neoforge-1.8.0-1.21.1.jar')
+def kubejsJar = file('libs/kubejs-neoforge-2101.7.2-build.381.jar')
+def rhinoJar = file('libs/rhino-neoforge-2101.2.7-build.81.jar')
+
+if ([project.hasProperty('coreOnly'), spearOnly, kubejsOnly].count { it } > 1) {
+    throw new GradleException('coreOnly、spearOnly 和 kubejsOnly 不能同时启用')
+}
 
 base {
     archivesName = project.archives_base_name
@@ -99,11 +111,14 @@ neoForge {
         client {
             client()
             gameDirectory = project.file('run')
-            if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
+            if (project.hasProperty('devcheck') || coreDevcheckEnabled || spearDevcheck || kubejsDevcheck) {
                 systemProperty 'summy_enchantment.devcheck', 'true'
                 systemProperty 'summy_enchantment.devcheck.mode',
                         project.findProperty('devcheckMode')
-                                ?: (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full')
+                                ?: (kubejsDevcheck ? 'kubejs'
+                                        : (spearDevcheck ? 'spear'
+                                        : (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full'))
+                                )
                 programArguments.addAll '--quickPlaySingleplayer', 'SeDevCheckWorld'
             }
         }
@@ -125,20 +140,49 @@ neoForge {
 dependencies {
     // MixinExtras 的注解与处理器实现由 NeoForge 运行时提供，这里只补编译期 API。
     compileOnly "io.github.llamalad7:mixinextras-common:0.5.5"
+
+    // Backported Spears 1.8.0 仅用于编译期校验可选兼容。
+    if (!project.hasProperty('coreOnly') && !kubejsOnly) {
+        if (!spearJar.isFile()) {
+            throw new GradleException("缺少 1.21.1 Spears 编译依赖：${spearJar}")
+        }
+        compileOnly files(spearJar)
+        if (spearOnly) {
+            runtimeOnly files(spearJar)
+        }
+    }
+
+    // KubeJS 2101 API 仅用于编译与本地兼容自检，运行期由用户安装。
+    if (!project.hasProperty('coreOnly') && !spearOnly) {
+        if (!kubejsJar.isFile() || !rhinoJar.isFile()) {
+            throw new GradleException("缺少 1.21.1 KubeJS/Rhino 编译依赖")
+        }
+        compileOnly files(kubejsJar)
+        compileOnly files(rhinoJar)
+        if (kubejsOnly) {
+            runtimeOnly files(kubejsJar)
+            runtimeOnly files(rhinoJar)
+        }
+    }
 }
 
-if (project.hasProperty('coreOnly')) {
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
-    if (!coreDevcheckEnabled) {
+if (isolatedCompatBuild) {
+    if (!kubejsOnly) {
+        sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
+    }
+    if (project.hasProperty('coreOnly') || kubejsOnly) {
+        sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearPiercingWeaponCompatMixin.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearKineticWeaponCompatMixin.java'
+    }
+    if (!coreDevcheckEnabled && !spearDevcheck && !kubejsDevcheck && !project.hasProperty('devcheck')) {
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
-    } else {
-        // 核心自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
+    } else if ((coreDevcheckEnabled && project.hasProperty('coreOnly')) || kubejsDevcheck) {
+        // 核心与 KubeJS 自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearForgeDevCheck.java'
     }
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
 }
@@ -146,14 +190,37 @@ if (project.hasProperty('coreOnly')) {
 processResources {
     inputs.property 'version', project.mod_version
 
-    if (project.hasProperty('coreOnly')) {
-        exclude 'kubejs.plugins.txt'
-        exclude 'summy_enchantment.spears.mixins.json'
+    if (isolatedCompatBuild) {
+        if (!kubejsOnly) {
+            exclude 'kubejs.plugins.txt'
+        }
         exclude 'summy_enchantment.summy_reliquary.mixins.json'
+        if (project.hasProperty('coreOnly') || kubejsOnly) {
+            exclude 'summy_enchantment.spears.mixins.json'
+        }
     }
 
     filesMatching('META-INF/neoforge.mods.toml') {
         expand 'version': project.mod_version
+    }
+
+    doLast {
+        if (!isolatedCompatBuild) {
+            return
+        }
+        // 隔离构建不包含未启用的可选兼容类，元数据必须同步移除对应 Mixin 配置。
+        def metadataFile = layout.buildDirectory
+                .file('resources/main/META-INF/neoforge.mods.toml').get().asFile
+        def metadata = metadataFile.getText('UTF-8').replace('\r\n', '\n')
+        def excludedConfigs = project.hasProperty('coreOnly') || kubejsOnly
+                ? ['summy_enchantment.spears.mixins.json',
+                   'summy_enchantment.summy_reliquary.mixins.json']
+                : ['summy_enchantment.summy_reliquary.mixins.json']
+        excludedConfigs.each { configName ->
+            metadata = metadata.replace(
+                    "[[mixins]]\nconfig = \"${configName}\"\n\n", '')
+        }
+        metadataFile.setText(metadata, 'UTF-8')
     }
 }
 
@@ -163,7 +230,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 jar {
-    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
+    if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
     from('LICENSE') {

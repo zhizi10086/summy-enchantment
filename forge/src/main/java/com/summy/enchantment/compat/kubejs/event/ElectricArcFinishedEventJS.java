@@ -1,11 +1,11 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 
 /** KubeJS 只读事件：一条电刀弹射链结束。 */
-public final class ElectricArcFinishedEventJS extends EventJS {
+public final class ElectricArcFinishedEventJS implements KubeEvent {
 	private final long chainId;
 	private final Player attacker;
 	private final ItemStack weapon;

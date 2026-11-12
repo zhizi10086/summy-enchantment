@@ -1,11 +1,11 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
 /** KubeJS 只读事件：藏剑带充能的一刀已经挥出并清空。 */
-public final class HiddenBladeConsumedEventJS extends EventJS {
+public final class HiddenBladeConsumedEventJS implements KubeEvent {
 	private final Player player;
 	private final Entity target;
 	private final boolean landed;

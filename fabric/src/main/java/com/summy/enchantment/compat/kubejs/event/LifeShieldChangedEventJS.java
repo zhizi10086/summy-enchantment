@@ -1,10 +1,10 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.entity.LivingEntity;
 
 /** KubeJS 只读事件：SE 生命护盾值发生变化。 */
-public final class LifeShieldChangedEventJS extends EventJS {
+public final class LifeShieldChangedEventJS implements KubeEvent {
 	private final LivingEntity entity;
 	private final String action;
 	private final float before;

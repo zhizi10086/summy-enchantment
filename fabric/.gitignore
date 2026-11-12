@@ -13,3 +13,6 @@ bin/
 # 本地运行目录
 run/
 run-kubejs-mods/
+
+# Gate D 本地可选兼容依赖，不入库
+libs/*.jar

@@ -6,7 +6,8 @@
   "refmap": "summy-enchantment-refmap.json",
   "plugin": "com.summy.enchantment.compat.SpearMixinPlugin",
   "mixins": [
-    "SpearItemCompatMixin"
+    "SpearPiercingWeaponCompatMixin",
+    "SpearKineticWeaponCompatMixin"
   ],
   "injectors": {
     "defaultRequire": 1

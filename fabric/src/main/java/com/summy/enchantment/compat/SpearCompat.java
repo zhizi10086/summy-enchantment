@@ -5,11 +5,12 @@ import com.summy.enchantment.combat.EnchantmentEffects;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityGroup;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
+import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.math.MathHelper;
 import org.jetbrains.annotations.Nullable;
@@ -133,8 +134,12 @@ public final class SpearCompat {
 			return new PierceAdjustment(originalDamage, originalDamage);
 		}
 
-		EntityGroup group = target instanceof LivingEntity living ? living.getGroup() : EntityGroup.DEFAULT;
-		float enchant = EnchantmentHelper.getAttackDamage(spear, group);
+		if (!(attacker.getWorld() instanceof ServerWorld serverWorld) || target == null) {
+			return new PierceAdjustment(originalDamage, originalDamage);
+		}
+		DamageSource source = attacker.getDamageSources().playerAttack(player);
+		float enchant = EnchantmentHelper.getDamage(
+				serverWorld, spear, target, source, originalDamage) - originalDamage;
 
 		// 复刻矛模组自己的口径：充能中按满蓄力算，否则取攻击冷却进度
 		boolean usingItem = attacker.isUsingItem();

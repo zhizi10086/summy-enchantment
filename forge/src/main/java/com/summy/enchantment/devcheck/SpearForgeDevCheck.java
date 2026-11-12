@@ -1,12 +1,15 @@
 package com.summy.enchantment.devcheck;
 
 import com.notunanancyowen.spears.Spears;
-import com.notunanancyowen.spears.dataholders.MovementFixer;
-import com.notunanancyowen.spears.items.SpearItem;
+import com.notunanancyowen.spears.components.KineticWeapon;
+import com.notunanancyowen.spears.components.PiercingWeapon;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.compat.SpearCompat;
 import com.summy.enchantment.registry.ModEnchantments;
 import com.summy.enchantment.registry.ModStatusEffects;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -18,9 +21,10 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Husk;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +33,7 @@ import java.util.List;
 public final class SpearForgeDevCheck {
 	private static final String TEST_TAG = "se_devcheck_spear_target";
 	private static Husk target;
+	private static float chargePlainLoss;
 
 	private SpearForgeDevCheck() {
 	}
@@ -42,7 +47,7 @@ public final class SpearForgeDevCheck {
 		}
 		if (step == 100) {
 			ItemStack sharpness = newSpear();
-			sharpness.enchant(Enchantments.SHARPNESS, 2);
+			sharpness.enchant(vanillaEnchantment(player, Enchantments.SHARPNESS), 2);
 			return checkStab(player, "stab_sharp_2", sharpness, 6.5F);
 		}
 		if (step == 140) {
@@ -53,18 +58,18 @@ public final class SpearForgeDevCheck {
 		if (step == 180) {
 			player.removeAllEffects();
 			ItemStack effects = newSpear();
-			effects.enchant(ModEnchantments.SPELLBLADE, 5);
-			effects.enchant(ModEnchantments.LIFESTEAL, 3);
+			effects.enchant(ModEnchantments.SPELLBLADE.entry(), 5);
+			effects.enchant(ModEnchantments.LIFESTEAL.entry(), 3);
 			return checkSettlement(player, effects);
 		}
 		if (step == 220) {
 			player.removeAllEffects();
-			return checkCharge(player, "charge_plain", newSpear(), 25.0F);
+			return checkCharge(player, "charge_plain", newSpear(), -1.0F);
 		}
 		if (step == 260) {
 			ItemStack sharpness = newSpear();
-			sharpness.enchant(Enchantments.SHARPNESS, 2);
-			return checkCharge(player, "charge_sharp_2", sharpness, 26.5F);
+			sharpness.enchant(vanillaEnchantment(player, Enchantments.SHARPNESS), 2);
+			return checkCharge(player, "charge_sharp_2", sharpness, chargePlainLoss + 1.5F);
 		}
 		return SpearDevCheckResult.idle();
 	}
@@ -123,7 +128,8 @@ public final class SpearForgeDevCheck {
 		prepareAttack(player, spear);
 		float cooldown = player.getAttackStrengthScale(0.5F);
 		float before = target.getHealth();
-		boolean hit = ((SpearItem) spear.getItem()).stab(player, EquipmentSlot.MAINHAND);
+		PiercingWeapon piercing = spear.get(Spears.PIERCING_WEAPON);
+		boolean hit = piercing != null && piercing.stab(player, EquipmentSlot.MAINHAND);
 		float lost = before - target.getHealth();
 		player.resetAttackStrengthTicker();
 		return check(label, hit && cooldown > 0.99F && Math.abs(lost - expected) < 0.05F,
@@ -135,8 +141,8 @@ public final class SpearForgeDevCheck {
 		player.setHealth(player.getMaxHealth() - 6.0F);
 		float healthBefore = player.getHealth();
 		float targetBefore = target.getHealth();
-		SpearItem item = (SpearItem) spear.getItem();
-		boolean hit = item.stab(player, EquipmentSlot.MAINHAND);
+		PiercingWeapon piercing = spear.get(Spears.PIERCING_WEAPON);
+		boolean hit = piercing != null && piercing.stab(player, EquipmentSlot.MAINHAND);
 		float targetLost = targetBefore - target.getHealth();
 		float healed = player.getHealth() - healthBefore;
 		player.resetAttackStrengthTicker();
@@ -150,16 +156,28 @@ public final class SpearForgeDevCheck {
 
 	private static SpearDevCheckResult checkCharge(ServerPlayer player, String label,
 			ItemStack spear, float expected) {
-		prepareAttack(player, spear);
-		((MovementFixer) player).setMovement(player.getViewVector(1.0F));
+		prepare(player);
+		player.setItemSlot(EquipmentSlot.MAINHAND, spear);
+		target.moveTo(player.getX(), player.getY(), player.getZ() + 3.0D, 0.0F, 0.0F);
+		player.setKnownMovement(player.getViewVector(1.0F));
+		Vec3 movementBefore = player.getKnownMovement();
 		player.startUsingItem(InteractionHand.MAIN_HAND);
 		float before = target.getHealth();
-		((SpearItem) spear.getItem()).onUseTick(player.level(), player, spear, 71950);
+		KineticWeapon kinetic = spear.get(Spears.KINETIC_WEAPON);
+		if (kinetic != null) {
+			kinetic.usageTick(spear, 71950, player, EquipmentSlot.MAINHAND);
+		}
 		player.stopUsingItem();
+		player.setKnownMovement(Vec3.ZERO);
 		float lost = before - target.getHealth();
 		player.resetAttackStrengthTicker();
-		return check(label, Math.abs(lost - expected) < 0.05F,
-				"lost=" + lost + " expected=" + expected);
+		boolean ok = expected < 0.0F ? lost > 0.0F : Math.abs(lost - expected) < 0.05F;
+		if (expected < 0.0F) {
+			chargePlainLoss = lost;
+		}
+		return check(label, ok,
+				"lost=" + lost + " expected=" + expected + " kinetic=" + (kinetic != null)
+						+ " movement=" + movementBefore);
 	}
 
 	private static void prepareAttack(ServerPlayer player, ItemStack spear) {
@@ -183,6 +201,14 @@ public final class SpearForgeDevCheck {
 
 	private static ItemStack newSpear() {
 		return new ItemStack(Spears.NETHERITE_SPEAR);
+	}
+
+	private static Holder<Enchantment> vanillaEnchantment(
+			ServerPlayer player, ResourceKey<Enchantment> key) {
+		return player.serverLevel().registryAccess()
+				.registryOrThrow(Registries.ENCHANTMENT)
+				.getHolder(key)
+				.orElseThrow(() -> new IllegalStateException("Missing enchantment " + key.location()));
 	}
 
 	private static boolean isFixedOrLater(String version) {

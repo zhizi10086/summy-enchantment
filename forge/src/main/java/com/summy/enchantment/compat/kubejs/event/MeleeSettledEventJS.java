@@ -1,13 +1,13 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.item.ItemStack;
 
 /** KubeJS 只读事件：一次近战主命中完成结算。 */
-public final class MeleeSettledEventJS extends EventJS {
+public final class MeleeSettledEventJS implements KubeEvent {
 	private final String entry;
 	private final Player attacker;
 	private final Entity target;

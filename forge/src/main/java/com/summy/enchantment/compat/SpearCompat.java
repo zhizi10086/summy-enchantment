@@ -2,16 +2,17 @@ package com.summy.enchantment.compat;
 
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.EnchantmentEffects;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.MobType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
+import net.minecraft.world.damagesource.DamageSource;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.regex.Matcher;
@@ -132,8 +133,12 @@ public final class SpearCompat {
 			return new PierceAdjustment(originalDamage, originalDamage);
 		}
 
-		MobType group = target instanceof LivingEntity living ? living.getMobType() : MobType.UNDEFINED;
-		float enchant = EnchantmentHelper.getDamageBonus(spear, group);
+		if (!(attacker.level() instanceof ServerLevel serverLevel) || target == null) {
+			return new PierceAdjustment(originalDamage, originalDamage);
+		}
+		DamageSource source = attacker.damageSources().playerAttack(player);
+		float enchant = EnchantmentHelper.modifyDamage(
+				serverLevel, spear, target, source, originalDamage) - originalDamage;
 
 		// 复刻矛模组自己的口径：充能中按满蓄力算，否则取攻击冷却进度
 		boolean usingItem = attacker.isUsingItem();

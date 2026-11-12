@@ -1,11 +1,11 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
 /** KubeJS 只读事件：死亡之眼层数变化。 */
-public final class DeathEyeChangedEventJS extends EventJS {
+public final class DeathEyeChangedEventJS implements KubeEvent {
 	private final Player player;
 	private final Entity arrow;
 	private final Entity target;

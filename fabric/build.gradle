@@ -6,6 +6,11 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 def coreDevcheckEnabled = project.hasProperty('coreDevcheck')
+def spearDevcheck = project.hasProperty('spearDevcheck')
+def spearOnly = project.hasProperty('spearOnly') || spearDevcheck
+def isolatedCompatBuild = project.hasProperty('coreOnly') || spearOnly
+def spearJar = file('libs/spear-backport-fabric-1.8.0-1.21.1.jar')
+def modmenuJar = file(".gradle/modmenu-${project.modmenu_version}.jar")
 
 base {
     archivesName = project.archives_base_name
@@ -56,18 +61,19 @@ loom {
     }
     runs {
         client {
-            if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
+            if (project.hasProperty('devcheck') || coreDevcheckEnabled || spearDevcheck) {
                 property 'summy_enchantment.devcheck', 'true'
                 property 'summy_enchantment.devcheck.mode',
                         project.findProperty('devcheckMode')
-                                ?: (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full')
+                                ?: (spearDevcheck ? 'spear'
+                                        : (coreDevcheckEnabled && !project.hasProperty('devcheck') ? 'core' : 'full'))
             }
         }
     }
 }
 
 tasks.named('runClient') {
-    if (project.hasProperty('devcheck') || coreDevcheckEnabled) {
+    if (project.hasProperty('devcheck') || coreDevcheckEnabled || spearDevcheck) {
         args '--quickPlaySingleplayer', 'SeDevCheckWorld'
     }
 }
@@ -91,36 +97,58 @@ dependencies {
         transitive = false
     }
 
-    // Mod Menu 只在编译期校验配置页入口，运行期保持可选。
+    // Backported Spears 1.8.0 仅用于编译期校验可选兼容；正式依赖仍由用户自行安装。
     if (!project.hasProperty('coreOnly')) {
-        modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+        if (!spearJar.isFile()) {
+            throw new GradleException("缺少 1.21.1 Spears 编译依赖：${spearJar}")
+        }
+        modCompileOnly files(spearJar)
+        if (spearOnly) {
+            modRuntimeOnly files(spearJar)
+        }
+    }
+
+    // Mod Menu 只在编译期校验配置页入口，运行期保持可选。
+    if (!isolatedCompatBuild) {
+        if (modmenuJar.isFile()) {
+            modCompileOnly files(modmenuJar)
+        } else {
+            modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+        }
     }
 }
 
-if (project.hasProperty('coreOnly')) {
+if (isolatedCompatBuild) {
     sourceSets.main.java.exclude 'com/summy/enchantment/client/SummyEnchantmentModMenu.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
-    if (!coreDevcheckEnabled) {
+    if (project.hasProperty('coreOnly')) {
+        sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearPiercingWeaponCompatMixin.java'
+        sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearKineticWeaponCompatMixin.java'
+    }
+    if (!coreDevcheckEnabled && !spearDevcheck && !project.hasProperty('devcheck')) {
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
-    } else {
+    } else if (coreDevcheckEnabled && project.hasProperty('coreOnly')) {
         // 核心自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearFabricDevCheck.java'
     }
-    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
 }
 
+// KubeJS 上游尚未发布 Fabric 1.21.1 对应版本，保留源码供后续恢复，不进入当前产物。
+sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
+
 processResources {
     inputs.property 'version', project.version
+    exclude 'kubejs.plugins.txt'
 
-    if (project.hasProperty('coreOnly')) {
-        exclude 'kubejs.plugins.txt'
-        exclude 'summy_enchantment.spears.mixins.json'
+    if (isolatedCompatBuild) {
         exclude 'summy_enchantment.summy_reliquary.mixins.json'
+        if (project.hasProperty('coreOnly')) {
+            exclude 'summy_enchantment.spears.mixins.json'
+        }
     }
 
     filesMatching('fabric.mod.json') {
@@ -128,13 +156,16 @@ processResources {
     }
 
     doLast {
-        if (!project.hasProperty('coreOnly')) {
+        if (!isolatedCompatBuild) {
             return
         }
         def metadataFile = layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile
         def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
         metadata.entrypoints.remove('modmenu')
-        metadata.mixins = metadata.mixins.findAll { it == 'summy_enchantment.mixins.json' }
+        metadata.mixins = metadata.mixins.findAll {
+            it == 'summy_enchantment.mixins.json'
+                    || (spearOnly && it == 'summy_enchantment.spears.mixins.json')
+        }
         metadataFile.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata)), 'UTF-8')
     }
 }
@@ -152,7 +183,7 @@ java {
 }
 
 jar {
-    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
+    if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
     from('LICENSE') {
@@ -161,7 +192,7 @@ jar {
 }
 
 tasks.named('sourcesJar') {
-    if (!project.hasProperty('devcheck') || project.hasProperty('coreOnly')) {
+    if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
 }

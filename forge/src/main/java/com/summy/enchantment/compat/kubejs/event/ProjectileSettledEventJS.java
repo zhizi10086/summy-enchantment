@@ -1,13 +1,13 @@
 package com.summy.enchantment.compat.kubejs.event;
 
-import dev.latvian.mods.kubejs.event.EventJS;
+import dev.latvian.mods.kubejs.event.KubeEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 
 /** KubeJS 只读事件：箭矢或投掷三叉戟的一次伤害尝试已完成。 */
-public final class ProjectileSettledEventJS extends EventJS {
+public final class ProjectileSettledEventJS implements KubeEvent {
 	private final String kind;
 	private final LivingEntity attacker;
 	private final Entity target;

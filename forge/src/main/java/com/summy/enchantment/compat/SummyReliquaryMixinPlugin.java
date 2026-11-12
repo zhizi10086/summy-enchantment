@@ -1,6 +1,6 @@
 package com.summy.enchantment.compat;
 
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -73,10 +73,10 @@ public class SummyReliquaryMixinPlugin implements IMixinConfigPlugin {
 		}
 	}
 
-	/** 先问 Forge 的"加载中 mod 列表"（比 ModList 早且不需要加载类），再退回 ModList */
+	/** 先问 NeoForge 的"加载中 mod 列表"（比 ModList 早且不需要加载类），再退回 ModList */
 	private static boolean summyEnchantment$isModPresent() {
 		try {
-			if (net.minecraftforge.fml.loading.FMLLoader.getLoadingModList()
+			if (net.neoforged.fml.loading.FMLLoader.getLoadingModList()
 					.getModFileById(MOD_ID) != null) {
 				return true;
 			}

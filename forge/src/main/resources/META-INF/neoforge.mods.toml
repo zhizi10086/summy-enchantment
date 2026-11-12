@@ -17,6 +17,12 @@ Summy Enchantment for Minecraft 1.21.1 NeoForge.
 [[mixins]]
 config = "summy_enchantment.mixins.json"
 
+[[mixins]]
+config = "summy_enchantment.spears.mixins.json"
+
+[[mixins]]
+config = "summy_enchantment.summy_reliquary.mixins.json"
+
 [[dependencies.summy_enchantment]]
 modId = "neoforge"
 type = "required"

@@ -1,6 +1,6 @@
 package com.summy.enchantment.compat;
 
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 import org.objectweb.asm.tree.ClassNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +35,7 @@ public class SpearMixinPlugin implements IMixinConfigPlugin {
 
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-		// 注意：这里绝对不能 Class.forName 目标类！那会在 Mixin 准备阶段就把 SpearItem
+		// 注意：这里绝对不能 Class.forName 目标类！那会在 Mixin 准备阶段就把矛组件
 		// 加载进来，导致它错过之后的注入（表现为整份兼容 Mixin 静默失效）。
 		boolean classVisible = hasSpearClassFile();
 		boolean modLoaded = isModPresent();
@@ -50,16 +50,17 @@ public class SpearMixinPlugin implements IMixinConfigPlugin {
 	private static boolean hasSpearClassFile() {
 		try {
 			ClassLoader loader = SpearMixinPlugin.class.getClassLoader();
-			return loader.getResource("com/notunanancyowen/spears/items/SpearItem.class") != null;
+			return loader.getResource("com/notunanancyowen/spears/components/PiercingWeapon.class") != null
+					&& loader.getResource("com/notunanancyowen/spears/components/KineticWeapon.class") != null;
 		} catch (Throwable ignored) {
 			return false;
 		}
 	}
 
-	/** 先问 Forge 的"加载中 mod 列表"（比 ModList 早得多且不需要加载类），再退回 ModList */
+	/** 先问 NeoForge 的"加载中 mod 列表"（比 ModList 早得多且不需要加载类），再退回 ModList */
 	private static boolean isModPresent() {
 		try {
-			if (net.minecraftforge.fml.loading.FMLLoader.getLoadingModList().getModFileById("spears") != null) {
+			if (net.neoforged.fml.loading.FMLLoader.getLoadingModList().getModFileById("spears") != null) {
 				return true;
 			}
 		} catch (Throwable ignored) {
