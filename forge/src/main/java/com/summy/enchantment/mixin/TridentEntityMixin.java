@@ -6,7 +6,6 @@ import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.MobType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.network.syncher.EntityDataAccessor;
@@ -15,13 +14,11 @@ import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.entity.projectile.ThrownTrident;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.phys.EntityHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -37,9 +34,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(ThrownTrident.class)
 public abstract class TridentEntityMixin implements PhantomTrident {
-	@Unique
-	private LivingEntity summyEnchantment$impalingTarget;
-
 	/** 忠诚改版生成的假三叉戟（本体还在玩家物品栏里） */
 	@Unique
 	private boolean summyEnchantment$phantom;
@@ -47,10 +41,6 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 	/** 假三叉戟的飞行计时（自管理，不依赖原版的 age） */
 	@Unique
 	private int summyEnchantment$flightTicks;
-
-	/** 三叉戟本体：投掷命中时用它取附魔等级（此时主手未必拿着三叉戟） */
-	@Shadow
-	private ItemStack tridentItem;
 
 	/** 原版记录忠诚等级的同步数据（客户端也能读到，用来判断"假三叉戟还在飞"） */
 	@Shadow
@@ -94,25 +84,6 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 	}
 
 	// 官方映射里 Yarn 的 onEntityHit = onHitEntity
-	@Inject(method = "onHitEntity", at = @At("HEAD"))
-	private void summyEnchantment$captureTarget(EntityHitResult hitResult, CallbackInfo ci) {
-		if (hitResult.getEntity() instanceof LivingEntity living) {
-			this.summyEnchantment$impalingTarget = living;
-		}
-	}
-
-	@ModifyArg(
-			method = "onHitEntity",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/world/item/enchantment/EnchantmentHelper;getDamageBonus(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/MobType;)F"
-			),
-			index = 1
-	)
-	private MobType summyEnchantment$impalingGroup(MobType group) {
-		return EnchantmentEffects.impalingGroupFor(this.summyEnchantment$impalingTarget, group);
-	}
-
 	/**
 	 * 投掷命中的魔剑 / 嗜血。
 	 *
@@ -130,34 +101,35 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 			Operation<Boolean> original) {
 		boolean hit = original.call(target, source, amount);
 		ThrownTrident self = (ThrownTrident) (Object) this;
+		ItemStack tridentItem = self.getWeaponItem();
 		Entity owner = self.getOwner();
 		if (owner instanceof LivingEntity livingOwner) {
 			float dealt = Math.max(amount, 0.0F);
 			float magic = 0.0F;
 			float healed = 0.0F;
 			if (hit) {
-				magic = EnchantmentEffects.applySpellbladeReport(livingOwner, this.tridentItem, target, dealt);
-				healed = EnchantmentEffects.applyLifestealReport(livingOwner, this.tridentItem, dealt);
+				magic = EnchantmentEffects.applySpellbladeReport(livingOwner, tridentItem, target, dealt);
+				healed = EnchantmentEffects.applyLifestealReport(livingOwner, tridentItem, dealt);
 				if (!self.level().isClientSide) {
 					SummyEnchantmentScriptHooks.fireProjectileSettled(
-							"trident", livingOwner, target, self, this.tridentItem, source,
+							"trident", livingOwner, target, self, tridentItem, source,
 							amount, amount, true, false, 1.0F, magic, healed, false);
 				}
 				// 斩杀：投掷三叉戟同样可以补刀（近战由 PlayerEntityMixin 处理）
-				EnchantmentEffects.tryExecute(livingOwner, target, this.tridentItem);
+				EnchantmentEffects.tryExecute(livingOwner, target, tridentItem);
 				// 出其不意：投掷三叉戟同样可以让这次攻击再结算一次
-				if (EnchantmentEffects.rollSurprise(livingOwner, this.tridentItem)) {
+				if (EnchantmentEffects.rollSurprise(livingOwner, tridentItem)) {
 					if (target instanceof LivingEntity livingTarget) {
 						livingTarget.invulnerableTime = 0;
 					}
 					if (target.hurt(source, amount)) {
 						float surpriseMagic = EnchantmentEffects.applySpellbladeReport(
-								livingOwner, this.tridentItem, target, dealt);
+								livingOwner, tridentItem, target, dealt);
 						float surpriseHealed = EnchantmentEffects.applyLifestealReport(
-								livingOwner, this.tridentItem, dealt);
+								livingOwner, tridentItem, dealt);
 						if (!self.level().isClientSide) {
 							SummyEnchantmentScriptHooks.fireProjectileSettled(
-									"trident", livingOwner, target, self, this.tridentItem, source,
+									"trident", livingOwner, target, self, tridentItem, source,
 									amount, amount, true, false, 1.0F,
 									surpriseMagic, surpriseHealed, true);
 						}
@@ -165,7 +137,7 @@ public abstract class TridentEntityMixin implements PhantomTrident {
 				}
 			} else if (!self.level().isClientSide) {
 				SummyEnchantmentScriptHooks.fireProjectileSettled(
-						"trident", livingOwner, target, self, this.tridentItem, source,
+						"trident", livingOwner, target, self, tridentItem, source,
 						amount, amount, false, false, 1.0F, 0.0F, 0.0F, false);
 			}
 		}

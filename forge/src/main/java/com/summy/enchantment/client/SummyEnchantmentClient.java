@@ -1,25 +1,28 @@
 package com.summy.enchantment.client;
 
+import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.network.ConfigSync;
+import com.summy.enchantment.network.ClientNetworkCallbacks;
+import com.summy.enchantment.registry.EnchantmentRef;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
-import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
-import net.minecraftforge.client.ConfigScreenHandler;
-import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
-import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
-import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.player.ItemTooltipEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.ModList;
 
 import java.util.List;
 
@@ -30,6 +33,7 @@ import java.util.List;
  * 注册物品提示、客户端 tick（本能释放 + 粒子偏好重试）、断线回调，
  * 并把配置界面挂到 Forge 的 mods 列表"配置"按钮上（取代 Fabric 的 Mod Menu 集成）。
  */
+@EventBusSubscriber(modid = SummyEnchantment.MOD_ID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class SummyEnchantmentClient {
 	/** 粒子偏好是否还没成功上报（改设置或进服时置位，成功发送后清零） */
 	private static boolean particlePreferenceDirty = true;
@@ -45,27 +49,25 @@ public final class SummyEnchantmentClient {
 
 	public static void init() {
 		// 物品提示（附魔书 / 装备 Shift 展开）
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentClient::onItemTooltip);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentClient::onItemTooltip);
 		// 本能释放：客户端也做同样的检测，保证拉弓动画与使用状态即时结束/重开
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentClient::onClientTick);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentClient::onClientTick);
 		// 离开服务器/世界后，恢复成本地配置文件里的设置
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentClient::onLoggingOut);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentClient::onLoggingOut);
 
 		// 大胃袋的第二行饥饿值：走 Forge 官方 GUI overlay，注册在气泡层之上，
 		// 确保画在原版 HUD 与苹果皮之上、不被覆盖（详见 ExtraHungerOverlay 的类注释）
-		FMLJavaModLoadingContext.get().getModEventBus()
-				.addListener(SummyEnchantmentClient::onRegisterGuiOverlays);
+		ClientNetworkCallbacks.setConfigHandler(SummyEnchantmentClient::onServerConfig);
+		ClientNetworkCallbacks.setParticleRequestHandler(SummyEnchantmentClient::onParticleRequest);
 
 		// mods 列表里的"配置"按钮
-		ModLoadingContext.get().registerExtensionPoint(ConfigScreenHandler.ConfigScreenFactory.class,
-				() -> new ConfigScreenHandler.ConfigScreenFactory(
-						(mc, parent) -> new SummyEnchantmentConfigScreen(parent)));
 	}
 
-	private static void onRegisterGuiOverlays(RegisterGuiOverlaysEvent event) {
+	@SubscribeEvent
+	private static void onRegisterGuiOverlays(RegisterGuiLayersEvent event) {
 		// 锚点放在 ITEM_NAME 之上：经典状态条是注册在 ITEM_NAME 之下的，
 		// 这样能确保我们的行在它之后绘制，读到的 ForgeGui 堆叠偏移已经包含它所有的条。
-		event.registerAbove(VanillaGuiOverlay.ITEM_NAME.id(), ExtraHungerOverlay.ID, ExtraHungerOverlay.INSTANCE);
+		event.registerAbove(VanillaGuiLayers.SELECTED_ITEM_NAME, ExtraHungerOverlay.ID, ExtraHungerOverlay.INSTANCE);
 	}
 
 	/**
@@ -119,20 +121,20 @@ public final class SummyEnchantmentClient {
 		}
 		// 带忠诚的物品（主要是三叉戟）：这一行常显，方便一眼看出"不会再丢"
 		if (SummyEnchantmentConfig.get().enableLoyaltyRework
-				&& EnchantmentHelper.getLoyalty(stack) > 0) {
+				&& EnchantmentRef.level(stack, Enchantments.LOYALTY) > 0) {
 			lines.add(Component.empty());
 			lines.add(Component.translatable("tooltip.summy_enchantment.desc.loyalty_rework")
 					.withStyle(ChatFormatting.GRAY));
 		}
 	}
 
-	private static void onClientTick(TickEvent.ClientTickEvent event) {
-		if (event.phase != TickEvent.Phase.END) {
-			return;
-		}
+	private static void onClientTick(ClientTickEvent.Post event) {
 		Minecraft client = Minecraft.getInstance();
 		if (client.player == null) {
 			return;
+		}
+		if (client.level != null) {
+			EnchantmentRef.bindRegistry(client.level.registryAccess().registryOrThrow(Registries.ENCHANTMENT));
 		}
 		EnchantmentEffects.tickInstinctiveRelease(client.player);
 		// 进服后尽快上报粒子偏好；通道还没就绪就下一 tick 继续重试

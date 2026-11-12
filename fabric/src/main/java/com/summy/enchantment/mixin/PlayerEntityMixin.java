@@ -14,7 +14,6 @@ import net.minecraft.particle.ParticleEffect;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityGroup;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
@@ -171,30 +170,6 @@ public abstract class PlayerEntityMixin {
 		float charge = original.call(instance, baseTime);
 		this.summyEnchantment$attackCharge = charge;
 		return charge;
-	}
-
-	/**
-	 * 让暴击也放大附魔加成。
-	 *
-	 * <p>只包装 ordinal = 0 的调用点：那是 target instanceof LivingEntity 分支内的附魔加成计算。
-	 * 非生物分支的调用点永远不可能暴击（暴击要求目标是生物），无需处理。
-	 */
-	@WrapOperation(
-			method = "attack(Lnet/minecraft/entity/Entity;)V",
-			at = @At(
-					value = "INVOKE",
-					target = "Lnet/minecraft/enchantment/EnchantmentHelper;getAttackDamage(Lnet/minecraft/item/ItemStack;Lnet/minecraft/entity/EntityGroup;)F",
-					ordinal = 0
-			)
-	)
-	private float summyEnchantment$scaleEnchantmentBonusByCrit(ItemStack stack, EntityGroup group, Operation<Float> original) {
-		float factor = CombatFormulas.critFactor(summyEnchantment$self(), this.summyEnchantment$attackCharge);
-		// 三叉戟的穿刺按基岩版规则判定（接触水或淋雨），用替换生物类型的方式复用原版加成
-		EntityGroup adjusted = group;
-		if (stack.isOf(Items.TRIDENT) && this.summyEnchantment$attackTarget instanceof LivingEntity livingTarget) {
-			adjusted = EnchantmentEffects.impalingGroupFor(livingTarget, group);
-		}
-		return original.call(stack, adjusted) * factor;
 	}
 
 	/** 主命中：乘力量倍率 */

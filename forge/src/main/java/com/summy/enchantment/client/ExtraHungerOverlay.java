@@ -3,6 +3,8 @@ package com.summy.enchantment.client;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.gui.LayeredDraw;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.FluidTags;
@@ -11,9 +13,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.food.FoodData;
 import net.minecraft.world.level.GameType;
-import net.minecraftforge.client.gui.overlay.ForgeGui;
-import net.minecraftforge.client.gui.overlay.IGuiOverlay;
-import net.minecraftforge.fml.ModList;
+import net.neoforged.fml.ModList;
 
 /**
  * 大胃袋的 HUD：在饥饿条正上方单起一行显示"多出来的饥饿值"。
@@ -43,14 +43,16 @@ import net.minecraftforge.fml.ModList;
  * 所以这里在检测到 classicbar 时改用同一份偏移，把我们的行排在它所有条的正上方；
  * 注册锚点也放在 {@code ITEM_NAME} 之上，保证读取偏移时经典状态条已经完成累加。
  */
-public final class ExtraHungerOverlay implements IGuiOverlay {
+public final class ExtraHungerOverlay implements LayeredDraw.Layer {
 	public static final ExtraHungerOverlay INSTANCE = new ExtraHungerOverlay();
 
 	/** overlay 注册用的路径名（完整 id 为 summy_enchantment:extra_hunger_row） */
-	public static final String ID = "extra_hunger_row";
+	public static final ResourceLocation ID =
+			SummyEnchantment.id("extra_hunger_row");
 
 	/** 原版 GUI 图集（饥饿图标） */
-	private static final ResourceLocation VANILLA_ICONS = new ResourceLocation("textures/gui/icons.png");
+	private static final ResourceLocation VANILLA_ICONS =
+			ResourceLocation.withDefaultNamespace("textures/gui/icons.png");
 	/** 内置的苹果皮图集（饱和度金框） */
 	private static final ResourceLocation APPLESKIN_ICONS =
 			SummyEnchantment.id("textures/gui/appleskin_icons.png");
@@ -65,7 +67,9 @@ public final class ExtraHungerOverlay implements IGuiOverlay {
 	}
 
 	@Override
-	public void render(ForgeGui gui, GuiGraphics context, float partialTick, int screenWidth, int screenHeight) {
+	public void render(GuiGraphics context, DeltaTracker deltaTracker) {
+		int screenWidth = context.guiWidth();
+		int screenHeight = context.guiHeight();
 		Minecraft client = Minecraft.getInstance();
 		Player player = client.player;
 		if (player == null || summyEnchantment$hiddenGameMode(client)
@@ -81,14 +85,9 @@ public final class ExtraHungerOverlay implements IGuiOverlay {
 		// 经典状态条：它把原版饥饿条藏起来、自己从屏幕底部往上排条形（y = 高度 - rightHeight），
 		// 所以这里读同一份偏移，把我们的行排在它所有条的正上方。
 		// 纯原版：饥饿条在 高度-39，额外行画在它上面一行；若原版会画水泡行，再让开一行。
-		int rowY;
-		if (summyEnchantment$classicBarLoaded()) {
-			rowY = screenHeight - gui.rightHeight - 10;
-		} else {
-			rowY = screenHeight - 39 - 10;
-			if (player.isEyeInFluid(FluidTags.WATER) || player.getAirSupply() < player.getMaxAirSupply()) {
-				rowY -= 10;
-			}
+		int rowY = screenHeight - 39 - 10;
+		if (player.isEyeInFluid(FluidTags.WATER) || player.getAirSupply() < player.getMaxAirSupply()) {
+			rowY -= 10;
 		}
 
 		if (foodLevel != lastLoggedFoodLevel || saturationKey != lastLoggedSaturationKey) {

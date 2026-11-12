@@ -9,16 +9,19 @@ import com.summy.enchantment.network.ConfigSync;
 import com.summy.enchantment.network.ParticlePreferences;
 import com.summy.enchantment.particle.DeathParticles;
 import com.summy.enchantment.particle.MeleeParticles;
+import com.summy.enchantment.registry.EnchantmentRef;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.EntityJoinLevelEvent;
-import net.minecraftforge.event.entity.living.LivingDeathEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
+import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 /**
  * 只需要事件、不需要 Mixin 的部分（Forge 版）。
@@ -34,14 +37,19 @@ public final class SummyEnchantmentEvents {
 	}
 
 	public static void register() {
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onRegisterCommands);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onLivingDeath);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerClone);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerLoggedIn);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerLoggedOut);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onEntityJoinLevel);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerTick);
-		MinecraftForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerStopped);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerStarted);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onRegisterCommands);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onLivingDeath);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerClone);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerLoggedIn);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerLoggedOut);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onEntityJoinLevel);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerTick);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerStopped);
+	}
+
+	private static void onServerStarted(ServerStartedEvent event) {
+		EnchantmentRef.bindRegistry(event.getServer().registryAccess().registryOrThrow(Registries.ENCHANTMENT));
 	}
 
 	private static void onRegisterCommands(RegisterCommandsEvent event) {
@@ -109,10 +117,7 @@ public final class SummyEnchantmentEvents {
 		}
 	}
 
-	private static void onServerTick(TickEvent.ServerTickEvent event) {
-		if (event.phase != TickEvent.Phase.END) {
-			return;
-		}
+	private static void onServerTick(ServerTickEvent.Post event) {
 		// 首次 tick 自检一次：护盾属性是否真的挂到了玩家身上
 		EnchantmentEffects.verifyLifeShieldAttribute();
 		// 近战粒子的多 tick 余晖队列

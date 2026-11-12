@@ -365,5 +365,9 @@
   "text.summy_enchantment.option.electric_blade_damage_ratio": "Electric Blade per segment",
   "text.summy_enchantment.option.electric_blade_damage_ratio.tooltip": "Damage of each segment relative to the previous one, 0.8 = -20% each",
   "text.summy_enchantment.option.electric_blade_delay_ticks": "Electric Blade segment delay",
-  "text.summy_enchantment.option.electric_blade_delay_ticks.tooltip": "Delay between segments in ticks, 2 ticks = 0.1s"
+  "text.summy_enchantment.option.electric_blade_delay_ticks.tooltip": "Delay between segments in ticks, 2 ticks = 0.1s",
+  "tag.item.summy_enchantment.spears": "Spears",
+  "tag.item.summy_enchantment.bows_and_crossbows": "Bows and Crossbows",
+  "tag.item.summy_enchantment.sharp_weapons_and_spears": "Sharp Weapons and Spears",
+  "tag.item.summy_enchantment.near_weapons_and_spears": "Melee Weapons and Spears"
 }

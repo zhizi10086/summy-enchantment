@@ -6,6 +6,7 @@ import com.summy.enchantment.effect.StrengthStatusEffect;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.entry.RegistryEntry;
 
 /**
  * 自定义状态效果注册。
@@ -17,24 +18,26 @@ public final class ModStatusEffects {
 	/** 与原版力量同色（0x932423），视觉上无缝替换 */
 	public static final int STRENGTH_COLOR = 0x932423;
 
-	public static StatusEffect STRENGTH;
+	public static RegistryEntry<StatusEffect> STRENGTH;
 	/** 灵魂加护的冷却（纯可视化，权威计时在服务端） */
-	public static StatusEffect SOUL_GRACE;
+	public static RegistryEntry<StatusEffect> SOUL_GRACE;
 
 	private ModStatusEffects() {
 	}
 
 	public static void register() {
-		STRENGTH = Registry.register(
+		StatusEffect strength = Registry.register(
 				Registries.STATUS_EFFECT,
 				SummyEnchantment.id("strength"),
 				new StrengthStatusEffect()
 		);
+		STRENGTH = Registries.STATUS_EFFECT.getEntry(strength);
 
-		SOUL_GRACE = Registry.register(
+		StatusEffect soulGrace = Registry.register(
 				Registries.STATUS_EFFECT,
 				SummyEnchantment.id("soul_grace"),
 				new SoulGraceStatusEffect()
 		);
+		SOUL_GRACE = Registries.STATUS_EFFECT.getEntry(soulGrace);
 	}
 }

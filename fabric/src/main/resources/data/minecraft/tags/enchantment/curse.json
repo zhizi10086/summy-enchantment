@@ -1,0 +1,8 @@
+{
+    "replace":  false,
+    "values":  [
+                   "summy_enchantment:calamity",
+                   "summy_enchantment:life_mending",
+                   "summy_enchantment:dead_mans_heart"
+               ]
+}

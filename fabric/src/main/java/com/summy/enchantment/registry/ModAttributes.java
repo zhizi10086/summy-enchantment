@@ -8,6 +8,7 @@ import net.minecraft.entity.attribute.ClampedEntityAttribute;
 import net.minecraft.entity.attribute.EntityAttribute;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
+import net.minecraft.registry.entry.RegistryEntry;
 
 /**
  * 自定义玩家属性。
@@ -22,18 +23,22 @@ public final class ModAttributes {
 	/** 护盾值上限：最大生命 × 20%/级 × 5 级 加上生命提升/死者之心也远小于这个数 */
 	public static final double LIFE_SHIELD_MAX = 2048.0D;
 
-	public static EntityAttribute LIFE_SHIELD;
+	public static RegistryEntry<EntityAttribute> LIFE_SHIELD;
 
 	private ModAttributes() {
 	}
 
-	public static void register() {
-		LIFE_SHIELD = Registry.register(
+	public static void registerAttribute() {
+		EntityAttribute lifeShield = Registry.register(
 				Registries.ATTRIBUTE,
 				SummyEnchantment.id("life_shield"),
 				new ClampedEntityAttribute("attribute.name.summy_enchantment.life_shield",
 						0.0D, 0.0D, LIFE_SHIELD_MAX)
 		);
+		LIFE_SHIELD = Registries.ATTRIBUTE.getEntry(lifeShield);
+	}
+
+	public static void registerDefaultPlayerAttribute() {
 		// 玩家的默认属性表在游戏 bootstrap 阶段就已经建好（早于模组初始化），
 		// 所以这里用 Fabric 的接口整体替换一份：内容仍是原版 createPlayerAttributes()
 		// 的全部属性，只多挂我们这一条。若其它模组在此之后也注册玩家默认属性，

@@ -1,13 +1,14 @@
 package com.summy.enchantment.registry;
 
 import com.summy.enchantment.SummyEnchantment;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.RangedAttribute;
-import net.minecraftforge.event.entity.EntityAttributeModificationEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegisterEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.event.entity.EntityAttributeModificationEvent;
+import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
  * 自定义玩家属性。
@@ -24,7 +25,7 @@ public final class ModAttributes {
 	/** 护盾值上限：最大生命 × 20%/级 × 5 级 加上生命提升/死者之心也远小于这个数 */
 	public static final double LIFE_SHIELD_MAX = 2048.0D;
 
-	public static Attribute LIFE_SHIELD;
+	public static Holder<Attribute> LIFE_SHIELD;
 
 	/** 注册事件期间的临时引用，仅用于 register 辅助方法 */
 	private static RegisterEvent pendingEvent;
@@ -37,7 +38,7 @@ public final class ModAttributes {
 	}
 
 	private static void onRegister(RegisterEvent event) {
-		if (!ForgeRegistries.Keys.ATTRIBUTES.equals(event.getRegistryKey())) {
+		if (!Registries.ATTRIBUTE.equals(event.getRegistryKey())) {
 			return;
 		}
 		pendingEvent = event;
@@ -51,9 +52,9 @@ public final class ModAttributes {
 	}
 
 	/** 注册并返回实例，方便直接写回静态字段 */
-	private static <T extends Attribute> T register(String path, T attribute) {
-		pendingEvent.register(ForgeRegistries.Keys.ATTRIBUTES, SummyEnchantment.id(path), () -> attribute);
-		return attribute;
+	private static Holder<Attribute> register(String path, Attribute attribute) {
+		pendingEvent.register(Registries.ATTRIBUTE, SummyEnchantment.id(path), () -> attribute);
+		return pendingEvent.getRegistry(Registries.ATTRIBUTE).wrapAsHolder(attribute);
 	}
 
 	/** 模组总线事件：给玩家挂上护盾属性（在 SummyEnchantment 构造里注册） */

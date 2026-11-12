@@ -1,42 +1,60 @@
 package com.summy.enchantment.mixin;
 
-import com.summy.enchantment.enchantment.SimpleEnchantment;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import com.summy.enchantment.config.SummyEnchantmentConfig;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.enchantment.EnchantmentLevelEntry;
+import net.minecraft.enchantment.Enchantments;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.SwordItem;
+import net.minecraft.registry.entry.RegistryEntry;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
- * 附魔台候选过滤（1.3.8）：把"严格只剑"的附魔从非剑物品的候选里剔除。
- *
- * <p>原版附魔台只按 {@code EnchantmentTarget} 判定（{@code EnchantmentTarget.isAcceptableItem(Item)}），
- * 而 {@code Enchantment#isAcceptableItem(ItemStack)}（我们覆写"仅剑"的地方）在铁砧、命令、创造书、
- * 随机战利品里才走得到。所以要让"斧头在附魔台上也附不到藏剑/电刀"，必须在这一处再过滤一次。
+ * 1.21.1 附魔兼容和随机可选范围的配置补丁。
  */
 @Mixin(EnchantmentHelper.class)
 public abstract class EnchantmentHelperMixin {
-	@ModifyReturnValue(method = "getPossibleEntries(ILnet/minecraft/item/ItemStack;Z)Ljava/util/List;",
-			at = @At("RETURN"))
-	private static List<EnchantmentLevelEntry> summyEnchantment$filterSwordOnly(
-			List<EnchantmentLevelEntry> original, int level, ItemStack stack, boolean treasure) {
-		if (original == null || original.isEmpty() || stack.getItem() instanceof SwordItem) {
+	@ModifyReturnValue(
+			method = "getPossibleEntries(ILnet/minecraft/item/ItemStack;Ljava/util/stream/Stream;)Ljava/util/List;",
+			at = @At("RETURN")
+	)
+	private static List<EnchantmentLevelEntry> summyEnchantment$hideVanillaSharpness(
+			List<EnchantmentLevelEntry> original) {
+		if (!SummyEnchantmentConfig.get().enableCustomSharpness) {
 			return original;
 		}
-		List<EnchantmentLevelEntry> filtered = new ArrayList<>(original.size());
-		for (EnchantmentLevelEntry entry : original) {
-			Enchantment enchantment = entry.enchantment;
-			if (enchantment instanceof SimpleEnchantment simple && simple.isSwordOnlyEnchantment()) {
-				continue;
-			}
-			filtered.add(entry);
-		}
+		List<EnchantmentLevelEntry> filtered = original.stream()
+				.filter(entry -> !entry.enchantment.matchesKey(Enchantments.SHARPNESS))
+				.toList();
 		return filtered.size() == original.size() ? original : filtered;
+	}
+
+	@Inject(
+			method = "isCompatible(Ljava/util/Collection;Lnet/minecraft/registry/entry/RegistryEntry;)Z",
+			at = @At("HEAD"),
+			cancellable = true
+	)
+	private static void summyEnchantment$allowInfinityMending(
+			Collection<RegistryEntry<Enchantment>> existing,
+			RegistryEntry<Enchantment> candidate,
+			CallbackInfoReturnable<Boolean> cir) {
+		if (!SummyEnchantmentConfig.get().enableInfinityMending) {
+			return;
+		}
+		boolean candidateInfinity = candidate.matchesKey(Enchantments.INFINITY);
+		boolean candidateMending = candidate.matchesKey(Enchantments.MENDING);
+		boolean hasInfinity = existing.stream().anyMatch(entry -> entry.matchesKey(Enchantments.INFINITY));
+		boolean hasMending = existing.stream().anyMatch(entry -> entry.matchesKey(Enchantments.MENDING));
+		if ((candidateInfinity && hasMending) || (candidateMending && hasInfinity)) {
+			cir.setReturnValue(true);
+		}
 	}
 }

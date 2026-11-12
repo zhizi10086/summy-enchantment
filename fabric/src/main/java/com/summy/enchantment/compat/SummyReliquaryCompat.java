@@ -4,7 +4,7 @@ import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
-import com.summy.enchantment.enchantment.SimpleEnchantment;
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.network.ParticlePreferences;
 import com.summy.enchantment.particle.MeleeParticles;
 import com.summy.enchantment.registry.ModEnchantments;
@@ -293,7 +293,7 @@ public final class SummyReliquaryCompat {
 	}
 
 	/** 武器上的附魔等级（附魔对象为空时按 0 处理） */
-	private static int levelOf(ItemStack stack, SimpleEnchantment enchantment) {
+	private static int levelOf(ItemStack stack, EnchantmentRef enchantment) {
 		return enchantment == null ? 0 : EnchantmentEffects.levelOf(stack, enchantment);
 	}
 }

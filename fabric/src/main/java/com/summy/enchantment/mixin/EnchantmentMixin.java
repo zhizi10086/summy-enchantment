@@ -1,6 +1,8 @@
 package com.summy.enchantment.mixin;
 
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.Enchantments;
@@ -12,108 +14,64 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
- * 附魔层面的两处调整。
- *
- * <p>注入 Enchantment#canAccept（1.20.1 Yarn 中可覆写的互斥判断），而不是公开的
- * canCombine：后者是 final 且内部调用前者，所以注入基类即可覆盖双向判断。
+ * 1.21.1 附魔动态定义中的兼容性补丁。
  */
 @Mixin(Enchantment.class)
 public abstract class EnchantmentMixin {
-	/** 互斥表：锋利Plus ↔ 原版锋利、自动熔炼 ↔ 精准采集（附魔台、铁砧、随机附魔都会走这里） */
-	@Inject(method = "canAccept(Lnet/minecraft/enchantment/Enchantment;)Z", at = @At("HEAD"), cancellable = true)
-	private void summyEnchantment$blockVanillaSharpnessPair(Enchantment other, CallbackInfoReturnable<Boolean> cir) {
-		Enchantment self = (Enchantment) (Object) this;
-
-		// 锋利Plus 与原版锋利由同一个开关决定：开启锋利Plus 时原版锋利自动失效
-		if (SummyEnchantmentConfig.get().enableCustomSharpness && ModEnchantments.SHARPNESS_PLUS != null) {
-			boolean vanillaToCustom = self == Enchantments.SHARPNESS && other == ModEnchantments.SHARPNESS_PLUS;
-			boolean customToVanilla = self == ModEnchantments.SHARPNESS_PLUS && other == Enchantments.SHARPNESS;
-			if (vanillaToCustom || customToVanilla) {
-				cir.setReturnValue(false);
-				return;
-			}
-		}
-
-		// 自动熔炼与精准采集互斥（双向）
-		if (ModEnchantments.AUTO_SMELT != null) {
-			boolean autoSmeltToSilk = self == ModEnchantments.AUTO_SMELT && other == Enchantments.SILK_TOUCH;
-			boolean silkToAutoSmelt = self == Enchantments.SILK_TOUCH && other == ModEnchantments.AUTO_SMELT;
-			if (autoSmeltToSilk || silkToAutoSmelt) {
-				cir.setReturnValue(false);
-			}
-		}
-
-		// 无尽箭袋与无限互斥（双向）：无尽箭袋是无限的上位替代
-		if (ModEnchantments.ENDLESS_QUIVER != null) {
-			boolean endlessToInfinity = self == ModEnchantments.ENDLESS_QUIVER && other == Enchantments.INFINITY;
-			boolean infinityToEndless = self == Enchantments.INFINITY && other == ModEnchantments.ENDLESS_QUIVER;
-			if (endlessToInfinity || infinityToEndless) {
-				cir.setReturnValue(false);
-				return;
-			}
-		}
-
-		// 破空之愿与本能释放互斥：自动满蓄力释放与手动蓄力增伤不共存。
-		// 仅阻止新组合；NBT / 数据包强行写入的双附魔仍按原行为运行。
-		if (ModEnchantments.SKY_WISH != null && ModEnchantments.INSTINCTIVE_RELEASE != null) {
-			boolean skyWishToInstinctive = self == ModEnchantments.SKY_WISH
-					&& other == ModEnchantments.INSTINCTIVE_RELEASE;
-			boolean instinctiveToSkyWish = self == ModEnchantments.INSTINCTIVE_RELEASE
-					&& other == ModEnchantments.SKY_WISH;
-			if (skyWishToInstinctive || instinctiveToSkyWish) {
-				cir.setReturnValue(false);
-				return;
-			}
-		}
-
-		// 无限与经验修补共存（反向：this=经验修补、other=无限）
-		if (SummyEnchantmentConfig.get().enableInfinityMending
-				&& self == Enchantments.MENDING && other == Enchantments.INFINITY) {
-			cir.setReturnValue(true);
-		}
-	}
-
-	/**
-	 * 弓弩附魔互通（共用开关 {@code enable_crossbow_compat}，1.3.6 起双向）：
-	 *
-	 * <ul>
-	 *     <li>弩 ← 原版弓的四个附魔（力量 / 无限 / 火矢 / 冲击）；</li>
-	 *     <li>弓 ← 原版弩的两个附魔（多重射击 / 穿透）。</li>
-	 * </ul>
-	 *
-	 * <p>行为侧由 {@code CrossbowItemMixin}（弩）与 {@code BowItemMixin}（弓）实现；这里只管"能不能附"，
-	 * 附魔台、铁砧、命令与创造书都会走这个判定。开关关闭时两侧同时失效。
-	 */
 	@Inject(method = "isAcceptableItem(Lnet/minecraft/item/ItemStack;)Z", at = @At("HEAD"), cancellable = true)
-	private void summyEnchantment$allowBowCrossbowExchange(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
+	private void summyEnchantment$applyItemCompatibility(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
+		Enchantment self = (Enchantment) (Object) this;
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+
+		boolean customCrossbowOnly = isAnyValue(self, ModEnchantments.ARROW_VELOCITY,
+				ModEnchantments.PHANTOM_ARROW, ModEnchantments.ENDLESS_QUIVER);
+		if (stack.isOf(Items.CROSSBOW) && customCrossbowOnly) {
+			cir.setReturnValue(config.enableCrossbowCompat);
+			return;
+		}
 		if (!config.enableCrossbowCompat) {
 			return;
 		}
-		Enchantment self = (Enchantment) (Object) this;
-		if (stack.isOf(Items.CROSSBOW) && (self == Enchantments.POWER || self == Enchantments.INFINITY
-				|| self == Enchantments.FLAME || self == Enchantments.PUNCH)) {
+		if (stack.isOf(Items.CROSSBOW) && isAnyKey(self, Enchantments.POWER, Enchantments.INFINITY,
+				Enchantments.FLAME, Enchantments.PUNCH)) {
 			cir.setReturnValue(true);
 			return;
 		}
-		// 弓：原版弩的多重射击与穿透（1.3.6）；两者互斥由原版 MultiShotEnchantment 的互斥判定保证
-		if (stack.isOf(Items.BOW) && (self == Enchantments.MULTISHOT || self == Enchantments.PIERCING)) {
+		if (stack.isOf(Items.BOW) && isAnyKey(self, Enchantments.MULTISHOT, Enchantments.PIERCING)) {
 			cir.setReturnValue(true);
 		}
 	}
 
-	/**
-	 * 把原版锋利移出"随机可选"范围。
-	 *
-	 * <p>附魔台（EnchantmentHelper.getPossibleEntries）与随机战利品/村民附魔书
-	 * （EnchantRandomlyFunction）都会过滤这个方法，因此一处生效即可。
-	 * 原版锋利仍留在注册表中，命令与数据包显式列表依然可用。
-	 */
-	@Inject(method = "isAvailableForRandomSelection()Z", at = @At("HEAD"), cancellable = true)
-	private void summyEnchantment$hideVanillaSharpness(CallbackInfoReturnable<Boolean> cir) {
+	@ModifyReturnValue(method = "getMaxLevel()I", at = @At("RETURN"))
+	private int summyEnchantment$configuredMaxLevel(int original) {
+		Enchantment self = (Enchantment) (Object) this;
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
-		if (config.enableCustomSharpness && ((Object) this) == Enchantments.SHARPNESS) {
-			cir.setReturnValue(false);
+		if (config.enableProtectionLevel5
+				&& EnchantmentRef.valueMatches(self, Enchantments.PROTECTION)) {
+			return 5;
 		}
+		if (ModEnchantments.SHARPNESS_PLUS.matchesValue(self)) {
+			return config.enableCustomSharpness ? config.sharpnessMaxLevel : original;
+		}
+		return original;
+	}
+
+	private static boolean isAnyValue(Enchantment value, EnchantmentRef... refs) {
+		for (EnchantmentRef ref : refs) {
+			if (ref.matchesValue(value)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static boolean isAnyKey(Enchantment value,
+			net.minecraft.registry.RegistryKey<Enchantment>... keys) {
+		for (var key : keys) {
+			if (EnchantmentRef.valueMatches(value, key)) {
+				return true;
+			}
+		}
+		return false;
 	}
 }

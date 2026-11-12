@@ -1,0 +1,27 @@
+{
+    "anvil_cost":  1,
+    "description":  {
+                        "translate":  "enchantment.summy_enchantment.auto_smelt"
+                    },
+    "effects":  {
+
+                },
+    "max_cost":  {
+                     "base":  15,
+                     "per_level_above_first":  10
+                 },
+    "max_level":  1,
+    "min_cost":  {
+                     "base":  10,
+                     "per_level_above_first":  10
+                 },
+    "primary_items":  "#minecraft:enchantable/mining",
+    "slots":  [
+                  "mainhand"
+              ],
+    "supported_items":  "#minecraft:enchantable/mining",
+    "weight":  2,
+    "exclusive_set":  [
+                          "minecraft:silk_touch"
+                      ]
+}

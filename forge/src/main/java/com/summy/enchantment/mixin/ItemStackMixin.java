@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.ModifyVariable;
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin {
 	@ModifyVariable(
-			method = "hurtAndBreak(ILnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V",
+			method = "hurtAndBreak(ILnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/LivingEntity;Ljava/util/function/Consumer;)V",
 			at = @At("HEAD"),
 			argsOnly = true
 	)

@@ -41,7 +41,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(InGameHud.class)
 public abstract class InGameHudMixin {
 	/** 原版 GUI 图集（饥饿图标） */
-	private static final Identifier VANILLA_ICONS = new Identifier("textures/gui/icons.png");
+	private static final Identifier VANILLA_ICONS = Identifier.of("minecraft", "textures/gui/icons.png");
 	/** 内置的苹果皮图集（饱和度金框） */
 	private static final Identifier APPLESKIN_ICONS =
 			SummyEnchantment.id("textures/gui/appleskin_icons.png");

@@ -18,6 +18,7 @@ import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.util.hit.EntityHitResult;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -65,11 +66,11 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 	 * 客户端侧这张档位表恒为空，所以这里在客户端不生效。
 	 */
 	@Inject(
-			method = "<init>(Lnet/minecraft/entity/EntityType;Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/world/World;)V",
+			method = "<init>(Lnet/minecraft/entity/EntityType;Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/world/World;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;)V",
 			at = @At("TAIL")
 	)
 	private void summyEnchantment$inheritShooterParticleStyle(EntityType<?> type, LivingEntity shooter,
-			World world, CallbackInfo ci) {
+			World world, ItemStack pickupItem, ItemStack weapon, CallbackInfo ci) {
 		if (shooter == null) {
 			return;
 		}
@@ -134,16 +135,19 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 			method = "tick",
 			at = @At(
 					value = "INVOKE",
-					target = "Lnet/minecraft/entity/projectile/PersistentProjectileEntity;setVelocity(DDD)V"
+					target = "Lnet/minecraft/entity/projectile/PersistentProjectileEntity;applyGravity()V"
 			)
 	)
 	private void summyEnchantment$lightnessGravity(PersistentProjectileEntity arrow,
-			double velocityX, double proposedVelocityY, double velocityZ, Operation<Void> original) {
-		double currentVelocityY = arrow.getVelocity().y;
-		double effectiveGravity = currentVelocityY - proposedVelocityY;
-		double adjustedVelocityY = currentVelocityY
-				- effectiveGravity * ArrowTraits.gravityFactor(arrow);
-		original.call(arrow, velocityX, adjustedVelocityY, velocityZ);
+			Operation<Void> original) {
+		Vec3d currentVelocity = arrow.getVelocity();
+		original.call(arrow);
+		Vec3d proposedVelocity = arrow.getVelocity();
+		double effectiveGravity = currentVelocity.y - proposedVelocity.y;
+		Vec3d adjustedVelocity = new Vec3d(proposedVelocity.x,
+				currentVelocity.y - effectiveGravity * ArrowTraits.gravityFactor(arrow),
+				proposedVelocity.z);
+		arrow.setVelocity(adjustedVelocity);
 	}
 
 	/**

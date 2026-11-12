@@ -1,629 +1,167 @@
-// Summy Enchantment —— Forge 1.20.1（47.4.10）版本
-// 由 Fabric 版（同版本号 1.3.4）移植而来，源码独立维护（Yarn 与 Mojang 官方映射不同）。
-buildscript {
-    repositories {
-        // 本地 Maven 仓库：内含 org.spongepowered:mixin:0.8.5（含注解处理器），
-        // 避免 MixinGradle 去 CreeperHost 回源被墙的 Sponge 站导致构建卡死。
-        maven { url = uri("${projectDir}/libs-m2") }
-        // MixinGradle 只能从 CreeperHost 镜像取（repo.spongepowered.org 本机不可达）
-        maven { name = 'CreeperHost'; url = 'https://maven.creeperhost.net/' }
-        mavenCentral()
-        maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
-    }
-    dependencies {
-        classpath 'org.spongepowered:mixingradle:0.7.38'
-        // verifyMixinTargets 用 ASM 读 libs 里对方模组的 jar，核对兼容 Mixin 的 @At 目标
-        classpath 'org.ow2.asm:asm:9.5'
-    }
-}
-
 plugins {
-    id 'eclipse'
-    id 'idea'
+    id 'java-library'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '[6.0,6.2)'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'idea'
 }
 
-apply plugin: 'org.spongepowered.mixin'
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
 
 version = project.mod_version
 group = project.maven_group
-
-def spearVersion = (project.findProperty('spearVersion') ?: '1.5.0').toString()
-if (spearVersion != '1.4.7' && spearVersion != '1.5.0') {
-    throw new GradleException("spearVersion 仅支持 1.4.7 或 1.5.0，当前为 ${spearVersion}")
-}
-def spearJar = file("libs/spear-backport-forge-${spearVersion}-1.20.1.jar")
-if (!spearJar.exists()) {
-    throw new GradleException("缺少矛模组编译/自检 JAR：${spearJar}")
-}
 
 base {
     archivesName = project.archives_base_name
 }
 
+repositories {
+    // Gate A 使用的官方 minecraft-dependencies module metadata 回退缓存。
+    def seLocalMaven = file('.gradle/se-local-maven')
+    if (seLocalMaven.isDirectory()) {
+        maven {
+            name = 'SELocalMaven'
+            url = uri(seLocalMaven)
+            metadataSources {
+                gradleMetadata()
+                mavenPom()
+                artifact()
+            }
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'SELocalPinned'
+                    url = uri(seLocalMaven)
+                    metadataSources {
+                        mavenPom()
+                        artifact()
+                    }
+                }
+            }
+            filter {
+                // 只锁定本地实际缓存的精确版本，避免拦截 Minecraft 1.21.1 所需的更高版本。
+                includeVersion('com.google.guava', 'guava', '31.1-jre')
+                includeVersion('org.apache.logging.log4j', 'log4j-core', '2.8.1')
+                includeVersion('org.apache.logging.log4j', 'log4j-core', '2.22.1')
+                includeVersion('com.google.code.gson', 'gson', '2.10')
+                includeVersion('com.google.code.gson', 'gson', '2.10.1')
+                includeVersion('com.mojang', 'logging', '1.1.1')
+                includeVersion('org.checkerframework', 'checker-qual', '3.12.0')
+                includeVersion('com.google.errorprone', 'error_prone_annotations', '2.11.0')
+                includeVersion('com.google.j2objc', 'j2objc-annotations', '1.3')
+                includeVersion('commons-io', 'commons-io', '2.11.0')
+            }
+        }
+    }
+    maven {
+        name = 'NeoForgedForgeCDN'
+        url = 'https://neoforged.forgecdn.net/releases'
+    }
+    maven {
+        name = 'BMCLAPI'
+        url = 'https://bmclapi2.bangbang93.com/maven'
+    }
+    maven {
+        name = 'ParchmentMC'
+        url = 'https://maven.parchmentmc.org'
+    }
+    mavenCentral()
+}
+
+// 自动注入的旧官方库源当前 DNS 不可用，禁用它后再由 ForgeCDN/BMCLAPI 解析。
+repositories.configureEach { repo ->
+    if (repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository
+            && repo.url?.host in ['maven.neoforged.net', 'maven.minecraftforge.net']) {
+        repo.content {
+            excludeGroupByRegex '.*'
+        }
+    }
+}
+
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
 
-repositories {
-    maven { url = uri("${projectDir}/libs-m2") }
-    mavenCentral()
-    maven { name = 'CreeperHost'; url = 'https://maven.creeperhost.net/' }
-    maven { name = 'MinecraftForge'; url = 'https://maven.minecraftforge.net/' }
-    // 供 fg.deobf 解析矛模组 jar（flatDir 是 ForgeGradle 要求的写法）
-    flatDir {
-        dirs 'libs'
-        if (project.hasProperty('externalModsDir')) {
-            dirs file(project.property('externalModsDir'))
-        }
-        if (project.hasProperty('kubejsModsDir')) {
-            dirs file(project.property('kubejsModsDir'))
-        }
-    }
-}
+neoForge {
+    version = project.neo_version
 
-// JarJar 只接受 Maven 范围格式（写裸版本 "0.5.5" 会报 invalid version specification），
-// 而范围版本默认每 24 小时就要去远程核对一次元数据——本机到 Maven Central 不稳，
-// 一超时就构建失败。这里把动态版本/变动模块的缓存时长拉到 365 天，解析完全走本地缓存。
-configurations.all {
-    resolutionStrategy {
-        cacheDynamicVersionsFor 365, 'days'
-        cacheChangingModulesFor 365, 'days'
+    parchment {
+        minecraftVersion = project.parchment_minecraft_version
+        mappingsVersion = project.parchment_mappings_version
     }
-}
-
-minecraft {
-    // 官方（Mojang）映射：与 Forge 1.20.1 生态一致
-    mappings channel: 'official', version: project.minecraft_version
 
     runs {
         client {
-            workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'debug'
-            // 让 Mixin 把依赖模组（矛）自带的 SRG refmap 重映射成开发映射
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${buildDir}/patchedSrg/output.srg"
+            client()
+            gameDirectory = project.file('run')
             if (project.hasProperty('devcheck')) {
-                property 'summy_enchantment.devcheck', 'true'
-                property 'summy_enchantment.devcheck.mode', project.findProperty('devcheckMode') ?: 'full'
-                args '--quickPlaySingleplayer', 'SeDevCheckWorld'
+                systemProperty 'summy_enchantment.devcheck', 'true'
+                systemProperty 'summy_enchantment.devcheck.mode',
+                        project.findProperty('devcheckMode') ?: 'full'
+                programArguments.addAll '--quickPlaySingleplayer', 'SeDevCheckWorld'
             }
         }
+
         server {
-            workingDirectory project.file('run')
-            property 'forge.logging.console.level', 'debug'
-            property 'mixin.env.remapRefMap', 'true'
-            property 'mixin.env.refMapRemappingFile', "${buildDir}/patchedSrg/output.srg"
+            server()
+            gameDirectory = project.file('run')
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${project.mod_id}" {
+            sourceSet sourceSets.main
         }
     }
 }
 
-mixin {
-    // AP 生成 refmap
-    add sourceSets.main, 'summy-enchantment.refmap.json'
-    // 声明 mixin 配置：MixinGradle 会在 dev 运行参数里注册它们（否则 runServer 跑的是
-    // 完全没有 mixin 的"空壳"，冒烟结果不可信），同时也会写进 jar 的 MixinConfigs。
-    config 'summy_enchantment.mixins.json'
-    config 'summy_enchantment.spears.mixins.json'
-    config 'summy_enchantment.summy_reliquary.mixins.json'
+dependencies {
+    // MixinExtras 的注解与处理器实现由 NeoForge 运行时提供，这里只补编译期 API。
+    compileOnly "io.github.llamalad7:mixinextras-common:0.5.5"
 }
 
-// ForgeGradle 的 jarJar 默认是关闭的：显式打开，MixinExtras 才会作为嵌套 jar 打进产物
-jarJar {
-    enable()
+if (project.hasProperty('coreOnly')) {
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
 }
 
-// reobfJarJar 会从该任务重建最终 JAR；这里必须单独加入许可证，
-// 否则普通 jar 里虽有 LICENSE，实际发布产物仍会遗漏 MIT 通知正文。
-tasks.named('jarJar') {
+processResources {
+    inputs.property 'version', project.mod_version
+
+    if (project.hasProperty('coreOnly')) {
+        exclude 'kubejs.plugins.txt'
+        exclude 'summy_enchantment.spears.mixins.json'
+        exclude 'summy_enchantment.summy_reliquary.mixins.json'
+    }
+
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand 'version': project.mod_version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+jar {
     if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
     from('LICENSE') {
         rename { "${it}_${project.base.archivesName.get()}" }
     }
-}
-
-dependencies {
-    minecraft "net.minecraftforge:forge:${project.minecraft_version}-${project.forge_version}"
-
-    // Mixin 注解处理器：Forge 自带运行期 Mixin，这里只需要编译期；
-    // 走本地 Maven 仓库（libs-m2）而不是联网取 :processor 分类器。
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-    // Mixin 的注解处理器依赖 ASM（本地缓存/Central 都有）
-    annotationProcessor 'org.ow2.asm:asm:9.5'
-    annotationProcessor 'org.ow2.asm:asm-tree:9.5'
-    annotationProcessor 'org.ow2.asm:asm-commons:9.5'
-    annotationProcessor 'org.ow2.asm:asm-util:9.5'
-    annotationProcessor 'org.ow2.asm:asm-analysis:9.5'
-    // Mixin 注解处理器还要用 Gson（读配置/mapping 时会抛 NoClassDefFoundError: JsonParseException）
-    annotationProcessor 'com.google.code.gson:gson:2.10.1'
-    // Mixin AP 还依赖 Guava
-    annotationProcessor 'com.google.guava:guava:31.1-jre'
-
-    // MixinExtras：@WrapOperation 等注入器（jar-in-jar 打进产物，运行期必需）
-    compileOnly(annotationProcessor('io.github.llamalad7:mixinextras-common:0.5.5'))
-    // 用"精确范围" [0.5.5] 而不是开放式 [0.5.2,)：JarJar 要求 Maven 范围格式，
-    // 精确范围既满足它、又把解析范围收窄到唯一版本，配合上面的 365 天缓存不会再联网核对。
-    // 矛模组自己嵌套的是 0.5.2，JarJar 在运行期会按版本协商取高版本，不受影响。
-    implementation(jarJar(group: 'io.github.llamalad7', name: 'mixinextras-forge', version: '[0.5.5]'))
-
-    // 矛模组 Backported Spears（Forge 版）：仅编译期，用于校验兼容 Mixin 的目标类；
-    // 运行期完全可选 —— 没装矛模组时整份兼容配置被 SpearMixinPlugin 跳过。
-    compileOnly files(spearJar)
-    // Summy Reliquary（Forge 版）：同样仅编译期 —— @Mixin(targets = ...) 需要目标类出现在
-    // 编译类路径上，否则注解处理器会直接报 "Mixin target ... could not be found"。
-    // 运行期完全可选，没装 SR 时整份兼容配置被 SummyReliquaryMixinPlugin 跳过。
-    compileOnly files('libs/summy-reliquary-1.8.5-forge.jar')
-
-    // KubeJS：只用于编译可选插件；运行期由玩家自行安装，绝不打进 SE 产物。
-    // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
-    compileOnly files('libs/kubejs-forge-2001.6.5-build.16.jar')
-    // Rhino 是 KubeJS 事件 API 的编译期父类依赖，同样只在本地参与编译，不进入产物。
-    compileOnly files('libs/rhino-forge-2001.2.3-build.10.jar')
-
-    // 仅在显式传 -PkubejsModsDir=... 时，把官方 KubeJS/Rhino/Architectury 生产 JAR
-    // 去混淆后加入开发运行期，用于真实脚本与事件自检。不会进入正式产物。
-    if (project.hasProperty('kubejsModsDir')) {
-        def kubejsVersion = project.findProperty('kubejsVersion') ?: '2001.6.5-build.16'
-        def rhinoVersion = project.findProperty('rhinoVersion') ?: '2001.2.3-build.10'
-        def architecturyVersion = project.findProperty('architecturyVersion') ?: '9.2.14'
-        runtimeOnly fg.deobf("kubejs-forge:kubejs-forge:${kubejsVersion}")
-        runtimeOnly fg.deobf("rhino-forge:rhino-forge:${rhinoVersion}")
-        runtimeOnly fg.deobf("architectury-forge:architectury-forge:${architecturyVersion}")
-    }
-}
-
-// ===== 开发期专用：把矛模组的生产 jar 反转成 dev 映射，用于兼容性冒烟 =====
-// 矛模组同样是 SRG 名发布；dev 环境直接读它的生产 jar 会因其 @Shadow 字段缺 refmap 条目而失败，
-// 因此这里额外生成一份 deobf 版本给 runServer/runClient 用（不进产物，不影响 build）。
-configurations {
-    spearDev
-    externalCompatDev
-}
-
-dependencies {
-    spearDev fg.deobf("spear-backport-forge:spear-backport-forge:${spearVersion}-1.20.1")
-    if (project.hasProperty('externalModsDir')) {
-        // 文件名必须遵循 <name>-<version>.jar；测试目录中的官方包会先规范化文件名。
-        externalCompatDev fg.deobf('celestial_enchantments:celestial_enchantments:1.3.7')
-        externalCompatDev fg.deobf('celestial_core:celestial_core:1.6.1')
-        externalCompatDev fg.deobf('l2library:l2library:2.5.3')
-        externalCompatDev fg.deobf('apotheosis:Apotheosis:1.20.1-7.4.8')
-        externalCompatDev fg.deobf('placebo:Placebo:1.20.1-8.6.3')
-        externalCompatDev fg.deobf('attributeslib:ApothicAttributes:1.20.1-1.3.7')
-        externalCompatDev fg.deobf('majruszlibrary:majrusz-library-forge:1.20.1-7.0.8')
-        externalCompatDev fg.deobf('majruszsenchantments:majruszs-enchantments-forge:1.20.1-1.10.8')
-    }
-}
-
-tasks.register('copySpearDevJar', Copy) {
-    from configurations.spearDev
-    into layout.projectDirectory.dir('run/mods')
-    doFirst {
-        def modsDir = layout.projectDirectory.dir('run/mods').asFile
-        if (modsDir.isDirectory()) {
-            modsDir.listFiles()?.findAll { it.isFile() && it.name.startsWith('spear-backport-forge-') }
-                    ?.each { it.delete() }
-        }
-    }
-}
-
-tasks.register('copyExternalCompatDevJars', Copy) {
-    from configurations.externalCompatDev
-    into layout.projectDirectory.dir('run/mods')
-}
-
-tasks.matching {
-    it.name == 'runClient' && project.hasProperty('devcheck') && project.hasProperty('externalModsDir')
-}.configureEach {
-    dependsOn 'copyExternalCompatDevJars'
-}
-
-// 开发和实机自检共用仓库内的 KubeJS 脚本，测试结束清理 run/ 后仍可一键复现。
-tasks.register('prepareKubeJsSelfTest', Copy) {
-    from file('../tools/kubejs-selftest')
-    into layout.projectDirectory.dir('run/kubejs')
-}
-
-if (project.hasProperty('kubejsModsDir')) {
-    tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
-        dependsOn 'prepareKubeJsSelfTest'
-    }
-}
-
-apply from: file('../tools/verify-kubejs-selftest.gradle')
-apply from: file('../tools/verify-spear-selftest.gradle')
-
-// Summy Reliquary 同样只有生产 jar（SRG 名），dev 环境直接读会因继承链对不上而失败，
-// 所以照矛的做法额外生成一份 deobf 版本给 runServer / runClient 用（不进产物，不影响 build）。
-configurations {
-    summyReliquaryDev
-}
-
-dependencies {
-    summyReliquaryDev fg.deobf('summy-reliquary:summy-reliquary:1.8.5-forge')
-}
-
-tasks.register('copySummyReliquaryDevJar', Copy) {
-    from configurations.summyReliquaryDev
-    into layout.projectDirectory.dir('run/mods')
-}
-
-// Curios 只在本地做"带 SR 的 dev 冒烟"时才需要（SR 的强制依赖）：jar 不入库（见 .gitignore），
-// 本地没有它时这段配置整体不启用 —— 正常构建、产物、CI 都不受影响。
-if (file('libs/curios-forge-5.14.1+1.20.1.jar').exists()) {
-    dependencies {
-        summyReliquaryDev fg.deobf('curios-forge:curios-forge:5.14.1+1.20.1')
-    }
-}
-
-// 把 gradle.properties 的版本号写进 mods.toml
-processResources {
-    inputs.property 'version', project.mod_version
-    filesMatching('META-INF/mods.toml') {
-        expand('version': project.mod_version)
-    }
-    // MixinGradle 只把生成的 refmap 塞进 jar；dev 运行时读的是 build/resources/main，
-    // 因此这里把编译期生成的 refmap 也复制进资源目录，否则 runServer/runClient 会报
-    // "The specified resource 'xxx.mixins.json' was invalid or could not be read"。
-    dependsOn 'patchRefmap'
-    from("${buildDir}/tmp/compileJava/summy-enchantment.refmap.json") {
-        into ''
-    }
-}
-
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 17
-    it.options.encoding = 'UTF-8'
-}
-
-// 少数原版成员是"接口继承/接口静态方法"（Level#addFreshEntity 来自 LevelWriter、
-// Level#addParticle、Component#translatable），Mixin 注解处理器在 tsrg2 里定位不到它们，
-// 于是 refmap 缺这几条 → 生产环境匹配不上、dev 环境也无法反向重映射。
-// 这里在编译结束后手工把映射补进 refmap（值取自 build/createMcpToSrg/output.tsrg）。
-def extraRefmapEntries = [
-        'com/summy/enchantment/mixin/AnvilScreenMixin'              : [
-                'Lnet/minecraft/network/chat/Component;translatable(Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent;':
-                        'Lnet/minecraft/network/chat/Component;m_237110_(Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent;'
-        ],
-        'com/summy/enchantment/mixin/ArrowEntityParticleClientMixin': [
-                'Lnet/minecraft/world/level/Level;addParticle(Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V':
-                        'Lnet/minecraft/world/level/Level;m_7106_(Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V'
-        ],
-        'com/summy/enchantment/mixin/SpectralArrowEntityParticleClientMixin': [
-                'Lnet/minecraft/world/level/Level;addParticle(Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V':
-                        'Lnet/minecraft/world/level/Level;m_7106_(Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V'
-        ],
-        'com/summy/enchantment/mixin/BowItemMixin'                   : [
-                'Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z':
-                        'Lnet/minecraft/world/level/Level;m_7967_(Lnet/minecraft/world/entity/Entity;)Z',
-                // Forge 新增方法（不在 Mojang/SRG 映射里，生产名不混淆）：@At 已标 remap = false，
-                // 这里补一条同名映射，只是为了通过 verifyMixinTargets 的 refmap 覆盖检查。
-                'Lnet/minecraft/world/item/ArrowItem;isInfinite(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/player/Player;)Z':
-                        'Lnet/minecraft/world/item/ArrowItem;isInfinite(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/player/Player;)Z'
-        ],
-        'com/summy/enchantment/mixin/CrossbowItemMixin'              : [
-                'Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z':
-                        'Lnet/minecraft/world/level/Level;m_7967_(Lnet/minecraft/world/entity/Entity;)Z'
-        ],
-        'com/summy/enchantment/mixin/TridentItemMixin'               : [
-                'Lnet/minecraft/world/level/Level;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z':
-                        'Lnet/minecraft/world/level/Level;m_7967_(Lnet/minecraft/world/entity/Entity;)Z'
-        ]
-]
-
-// 注意：必须用独立任务，挂在 compileJava 的 doLast 会在 MixinGradle 自己的收尾动作之前执行而被覆盖。
-tasks.register('patchRefmap') {
-    dependsOn tasks.named('compileJava')
-    outputs.upToDateWhen { false }
-    doLast {
-        def refmapFile = file("${buildDir}/tmp/compileJava/summy-enchantment.refmap.json")
-        if (!refmapFile.exists()) {
-            return
-        }
-        def json = new groovy.json.JsonSlurper().parseText(refmapFile.text)
-        def touched = false
-        [json.mappings, json.data?.searge].findAll { it != null }.forEach { section ->
-            extraRefmapEntries.each { mixin, entries ->
-                def target = section[mixin]
-                if (target == null) {
-                    target = [:]
-                    section[mixin] = target
-                }
-                entries.each { key, value ->
-                    if (target[key] != value) {
-                        target[key] = value
-                        touched = true
-                    }
-                }
-            }
-        }
-        if (touched) {
-            refmapFile.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(json))
-            logger.lifecycle("[Summy Enchantment] 已补充 refmap 映射（接口继承成员）")
-        }
-    }
-}
-
-// dev 运行时 Mixin 会用 createSrgToMcp 的 srg 反查 refmap 里的 SRG 名；
-// 而 Level#addFreshEntity / Level#addParticle / Component#translatable 这些
-// "接口继承/接口静态方法"在 srg 里没有对应条目，导致 dev 环境匹配不上。
-// 这里复制一份并在末尾补上对应映射，只用于 dev 运行（jar 内的 refmap 已经手工补过）。
-tasks.register('patchSrgForDev') {
-    // 全新环境首次运行时，先让 FG 生成 createSrgToMcp/output.srg
-    dependsOn 'createSrgToMcp'
-    def src = file("${buildDir}/createSrgToMcp/output.srg")
-    def dst = file("${buildDir}/patchedSrg/output.srg")
-    outputs.file(dst)
-    outputs.upToDateWhen { dst.exists() && src.exists() && dst.lastModified() >= src.lastModified() }
-    doLast {
-        dst.parentFile.mkdirs()
-        def extra = [
-                'MD: net/minecraft/world/level/Level/m_7967_ (Lnet/minecraft/world/entity/Entity;)Z net/minecraft/world/level/Level/addFreshEntity (Lnet/minecraft/world/entity/Entity;)Z',
-                'MD: net/minecraft/world/level/Level/m_7106_ (Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V net/minecraft/world/level/Level/addParticle (Lnet/minecraft/core/particles/ParticleOptions;DDDDDD)V',
-                'MD: net/minecraft/network/chat/Component/m_237110_ (Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent; net/minecraft/network/chat/Component/translatable (Ljava/lang/String;[Ljava/lang/Object;)Lnet/minecraft/network/chat/MutableComponent;'
-        ].join('\n')
-        dst.text = src.text + '\n' + extra + '\n'
-    }
-}
-
-tasks.matching { it.name == 'runServer' || it.name == 'runClient' }.configureEach {
-    dependsOn 'patchSrgForDev'
-}
-
-// ===== 构建期自检：mixin 注入目标校验 =====
-// 生产崩溃的教训：注解里写错包路径（例如 net/minecraft/world/Level 漏了 .level）时，
-// dev 环境会退化成"按名字 + 参数个数"的宽松匹配而静默通过，直到生产才炸。
-// 这里做两道检查，任何一处失败都直接中断 build：
-//   1) 注解里引用的每个 Minecraft 类都真实存在；
-//   2) 每个 method / @At target 字符串都能在 refmap 里找到映射（映射缺失 = 处理器解析不了）。
-tasks.register('verifyMixinTargets') {
-    group = 'verification'
-    description = '校验 mixin 注解里的 Minecraft 类名与 refmap 覆盖是否完整'
-    dependsOn 'patchRefmap'
-
-    def mixinDir = file('src/main/java/com/summy/enchantment/mixin')
-    def refmapFile = file("${buildDir}/tmp/compileJava/summy-enchantment.refmap.json")
-    inputs.dir(mixinDir)
-    inputs.file(refmapFile)
-    outputs.upToDateWhen { false }
-
-    doLast {
-        // 收集 dev 版 Minecraft jar 中的全部类名，同时建一个"内部名 -> [jar, 条目]"的索引，
-        // 供下面校验兼容 Mixin 的 @At owner（它们大多是原版类）使用
-        def classNames = [] as Set
-        def mcClassIndex = [:]
-        configurations.minecraft.files.each { f ->
-            if (f.name.endsWith('.jar')) {
-                def zip = new java.util.zip.ZipFile(f)
-                try {
-                    zip.entries().each { e ->
-                        if (e.name.endsWith('.class')) {
-                            def internal = e.name.substring(0, e.name.length() - '.class'.length())
-                            classNames << internal
-                            mcClassIndex.putIfAbsent(internal, [f, e.name])
-                        }
-                    }
-                } finally {
-                    zip.close()
-                }
-            }
-        }
-        if (classNames.isEmpty()) {
-            throw new GradleException('verifyMixinTargets: 读不到 Minecraft jar，无法校验')
-        }
-
-        def refmap = new groovy.json.JsonSlurper().parseText(refmapFile.text)
-        def mappings = refmap.mappings ?: [:]
-        // 可选兼容的 Mixin：method 选择器指向对方模组自己的成员（refmap 里可能没有条目），
-        // 但它们 @At 的 target 是原版成员——这类改走下面的"按目标 jar 字节码校验"，
-        // 也正是这次 owner 写错（Entity / LivingEntity）却没人发现的地方。
-        def compatMixins = ['SpearItemCompatMixin', 'SummyReliquaryShadowDashMixin',
-                            'SummyReliquaryThrownSpearMixin'] as Set
-        def problems = []
-
-        // libs/ 里对方模组 jar 的类索引（用显式目录遍历：doLast 里 fileTree 的委托不可靠）
-        def libClassIndex = [:]
-        def libsDir = file('libs')
-        if (libsDir.exists()) {
-            libsDir.listFiles().each { jarFile ->
-                if (jarFile.name.endsWith('.jar')) {
-                    def zip = new java.util.zip.ZipFile(jarFile)
-                    try {
-                        zip.entries().each { e ->
-                            if (e.name.endsWith('.class')) {
-                                def internal = e.name.substring(0, e.name.length() - '.class'.length())
-                                libClassIndex.putIfAbsent(internal, [jarFile, e.name])
-                            }
-                        }
-                    } finally {
-                        zip.close()
-                    }
-                }
-            }
-        }
-
-        // 取"目标类里指定方法"体内的 INVOKE 集合（owner.name(desc)）。
-        // 注意 @At 匹配的是"目标方法体内那条调用指令"，不是被调用类自身的方法——这点之前搞错过。
-        def invokesInMethod = { String classInternal, String methodName, String methodDesc,
-                List locatedOverride ->
-            def located = locatedOverride ?: (libClassIndex[classInternal] ?: mcClassIndex[classInternal])
-            if (located == null) {
-                return null
-            }
-            def found = [] as Set
-            // Groovy 的匿名内部类改不了外层局部变量，用单元素数组当可变标志
-            def matchedFlag = new boolean[1]
-            def zip = new java.util.zip.ZipFile(located[0])
-            try {
-                def stream = zip.getInputStream(zip.getEntry(located[1]))
-                def visitor = new org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9) {
-                    @Override
-                    org.objectweb.asm.MethodVisitor visitMethod(int access, String name, String descriptor,
-                            String signature, String[] exceptions) {
-                        if (!name.equals(methodName)) {
-                            return null
-                        }
-                        // 有描述符就精确匹配；只写了方法名时按名字匹配（覆盖全部重载）
-                        if (methodDesc != null && !descriptor.equals(methodDesc)) {
-                            return null
-                        }
-                        matchedFlag[0] = true
-                        return new org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9) {
-                            @Override
-                            void visitMethodInsn(int opcode, String callOwner, String callName,
-                                    String callDescriptor, boolean isInterface) {
-                                found << (callOwner + '.' + callName + callDescriptor)
-                            }
-                        }
-                    }
-                }
-                new org.objectweb.asm.ClassReader(stream).accept(visitor, 0)
-                stream.close()
-            } finally {
-                zip.close()
-            }
-            return [matched: matchedFlag[0], invokes: found]
-        }
-
-        def spearJars = fileTree('libs') {
-            include 'spear-backport-forge-*-1.20.1.jar'
-        }.files.sort { it.name }
-
-        // refmap 的值形如 "Lowner;name(desc)ret"，归一成 "owner.name(desc)ret" 便于比对
-        def normalizeMember = { String member ->
-            if (member != null && member.startsWith('L')) {
-                def semi = member.indexOf(';')
-                if (semi > 0) {
-                    return member.substring(1, semi) + '.' + member.substring(semi + 1)
-                }
-            }
-            return member
-        }
-
-        // 拆出方法名与描述符（只写了方法名时描述符为 null）
-        def splitMember = { String member ->
-            def normalized = normalizeMember(member)
-            def lp = normalized.indexOf('(')
-            def namePart = lp > 0 ? normalized.substring(0, lp) : normalized
-            def desc = lp > 0 ? normalized.substring(lp) : null
-            // 归一后形如 "owner.name"，方法名是最后一段（@At 比对时用的是带 owner 的全名）
-            def dot = namePart.lastIndexOf('.')
-            return [name: dot >= 0 ? namePart.substring(dot + 1) : namePart, desc: desc]
-        }
-
-        mixinDir.eachFile { f ->
-            if (!f.name.endsWith('.java')) {
-                return
-            }
-            def cls = f.name.substring(0, f.name.length() - '.java'.length())
-            def text = f.text
-
-            // 0) 兼容 Mixin：先定位它注入的"目标方法"，再确认 @At 找的那条调用真的在该方法体内
-            if (compatMixins.contains(cls)) {
-                def targetMatch = (text =~ /@Mixin\(targets\s*=\s*"([^"]+)"/)
-                if (!targetMatch.find()) {
-                    problems << "$cls: 解析不了 @Mixin 的 targets"
-                    return
-                }
-                def targetInternal = targetMatch.group(1).replace('.', '/')
-                def byMixin = mappings["com/summy/enchantment/mixin/$cls"] ?: [:]
-
-                def methodKeys = (text =~ /method\s*=\s*"([^"]+)"/).collect { it[1] } as Set
-                def atTargets = (text =~ /target\s*=\s*"(L[^"]+)"/).collect { it[1] } as Set
-
-                if (cls == 'SpearItemCompatMixin') {
-                    if (spearJars.size() != 2) {
-                        problems << "$cls: libs 中应同时存在 1.4.7 与 1.5.0 的 Forge 矛 JAR，实际 ${spearJars*.name}"
-                    }
-                    methodKeys.each { mk ->
-                        def split = splitMember(byMixin[mk] ?: mk)
-                        spearJars.each { jarFile ->
-                            def result = invokesInMethod(
-                                    targetInternal,
-                                    split.name,
-                                    split.desc,
-                                    [jarFile, targetInternal + '.class']
-                            )
-                            if (result == null || !result.matched) {
-                                problems << "$cls: ${jarFile.name} 中找不到目标方法 ${split.name}${split.desc ?: ''}"
-                                return
-                            }
-                            atTargets.each { raw ->
-                                def expected = normalizeMember(byMixin[raw] ?: raw)
-                                if (!result.invokes.contains(expected)) {
-                                    problems << "$cls: ${jarFile.name} 的 ${split.name} 体内没有对 $expected 的调用"
-                                }
-                            }
-                        }
-                    }
-                    return
-                }
-
-                methodKeys.each { mk ->
-                    def split = splitMember(byMixin[mk] ?: mk)
-                    def result = invokesInMethod(targetInternal, split.name, split.desc, null)
-                    if (result == null) {
-                        problems << "$cls: 目标类 $targetInternal 在 libs 或 Minecraft jar 里找不到"
-                        return
-                    }
-                    if (!result.matched) {
-                        problems << "$cls: 目标方法 ${split.name}${split.desc ?: ''} 在 $targetInternal 里找不到"
-                        return
-                    }
-                    atTargets.each { raw ->
-                        def expected = normalizeMember(byMixin[raw] ?: raw)
-                        if (!result.invokes.contains(expected)) {
-                            problems << "$cls: 目标方法 ${split.name} 体内没有对 $expected 的调用（@At 的 owner/名字写错会静默失效）"
-                        }
-                    }
-                }
-                return
-            }
-
-            // 1) 注解里引用的 Minecraft 类必须存在
-            def classRefs = (text =~ /L(net\/minecraft\/[^;]+);/).collect { it[1] } as Set
-            classRefs.each { c ->
-                if (!classNames.contains(c)) {
-                    problems << "$cls: 引用了不存在的 Minecraft 类 $c"
-                }
-            }
-
-            // 2) method / @At target 字符串必须能在 refmap 里查到映射
-            def keys = mappings["com/summy/enchantment/mixin/$cls"]?.keySet() ?: ([] as Set)
-            def used = (text =~ /(?:method|target)\s*=\s*"([^"]+)"/).collect { it[1] } as Set
-            used.each { s ->
-                if (s.startsWith('Lcom/') || s.startsWith('Lorg/') || s.startsWith('Ljava/')) {
-                    return
-                }
-                if (!keys.contains(s)) {
-                    problems << "$cls: 注解目标 '$s' 在 refmap 中没有映射（处理器解析不了，生产环境会注入失败）"
-                }
-            }
-        }
-
-        if (!problems.isEmpty()) {
-            throw new GradleException('verifyMixinTargets 失败：\n  - ' + problems.join('\n  - '))
-        }
-        logger.lifecycle('[Summy Enchantment] Spears Mixin targets checked: {}',
-                spearJars*.name.join(', '))
-        logger.lifecycle("[Summy Enchantment] mixin 注入目标校验通过（${mixinDir.listFiles().length} 个文件）")
-    }
-}
-
-tasks.named('check') {
-    dependsOn 'verifyMixinTargets'
-}
-
-jar {
-    // refmap 补丁必须在打 jar 之前完成（MixinGradle 会把 tmp 里的 refmap 塞进 jar）
-    dependsOn 'patchRefmap'
-    // refmap 既在 resources 里（供 dev 运行），又被 MixinGradle 加进 jar，去重即可
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     manifest {
         attributes([
                 'Specification-Title'   : project.archives_base_name,
@@ -633,42 +171,13 @@ jar {
                 'Implementation-Version': project.mod_version,
                 'Implementation-Vendor' : 'Summy'
         ])
-        // 注意：配置文件本身是下划线命名（summy_enchantment.mixins.json），写错成连字符会导致 Mixin 读不到
-        attributes 'MixinConfigs': 'summy_enchantment.mixins.json,summy_enchantment.spears.mixins.json,summy_enchantment.summy_reliquary.mixins.json'
-    }
-    from('LICENSE') {
-        rename { "${it}_${project.base.archivesName.get()}" }
-    }
-    if (!project.hasProperty('devcheck')) {
-        exclude 'com/summy/enchantment/devcheck/**'
     }
 }
 
-// 构建结束后把 reobf 后的 jar 复制到 MC mod/JAR 统一发布目录
-tasks.named('build') {
-    doLast {
-        def releaseDir = file("../../../JAR/${project.minecraft_version}/summy-enchantment-forge")
-        releaseDir.mkdirs()
-        // 开启 JarJar 后，真正可发布的产物是 reobfJarJar（含嵌套的 MixinExtras）
-        def reobfTask = tasks.findByName('reobfJarJar') ?: tasks.named('reobfJar').get()
-        def jarFile = null
-        if (reobfTask.hasProperty('output')) {
-            def output = reobfTask.property('output')
-            if (output instanceof File) {
-                jarFile = output
-            }
-        }
-        if (jarFile == null) {
-            jarFile = (file('build/reobfJarJar').listFiles() ?: file('build/reobfJar').listFiles())
-                    ?.find { it.name.endsWith('.jar') }
-        }
-        if (jarFile == null || !jarFile.exists()) {
-            throw new GradleException('找不到 reobfJar 的输出 jar')
-        }
-        copy {
-            from jarFile
-            rename { "${project.archives_base_name}-${project.mod_version}.jar" }
-            into releaseDir
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
         }
     }
 }

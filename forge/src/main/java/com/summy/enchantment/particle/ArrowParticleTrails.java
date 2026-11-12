@@ -33,10 +33,10 @@ public final class ArrowParticleTrails {
 
 	/** 包含标签：命中就一定接手（可把"不是继承箭基类"的投掷物登记进来，也能把默认被排除的加回来） */
 	private static final TagKey<EntityType<?>> INCLUDE_TAG = TagKey.create(Registries.ENTITY_TYPE,
-			new ResourceLocation("summy_enchantment", "arrow_particles"));
+			ResourceLocation.fromNamespaceAndPath("summy_enchantment", "arrow_particles"));
 	/** 排除标签：命中就保持原版（整合包用它踢掉个别投掷物，例如某个模组的标枪） */
 	private static final TagKey<EntityType<?>> EXCLUDE_TAG = TagKey.create(Registries.ENTITY_TYPE,
-			new ResourceLocation("summy_enchantment", "no_arrow_particles"));
+			ResourceLocation.fromNamespaceAndPath("summy_enchantment", "no_arrow_particles"));
 	/**
 	 * 代码内固定排除的实体 id（不依赖标签）。
 	 *

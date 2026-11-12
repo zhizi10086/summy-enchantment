@@ -8,15 +8,14 @@ import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.event.SummyEnchantmentEvents;
 import com.summy.enchantment.network.ConfigSync;
 import com.summy.enchantment.particle.MeleeParticles;
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModAttributes;
-import com.summy.enchantment.registry.ModEnchantments;
-import com.summy.enchantment.registry.ModItemGroups;
-import com.summy.enchantment.registry.ModStatusEffects;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.util.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,11 +34,7 @@ public class SummyEnchantment implements ModInitializer {
 	public void onInitialize() {
 		// 必须先读配置：自定义附魔的上限、保护上限都在运行时查询配置
 		SummyEnchantmentConfig.load();
-
-		ModStatusEffects.register();
-		ModAttributes.register();
-		ModEnchantments.register();
-		ModItemGroups.register();
+		ModAttributes.registerDefaultPlayerAttribute();
 
 		// 原版命令接口：/summyenchantment status|set|reset
 		SummyEnchantmentCommand.register();
@@ -58,6 +53,8 @@ public class SummyEnchantment implements ModInitializer {
 
 		// 客户端上报的"每名玩家自己的箭矢粒子档位"（不属于服务端配置，单独一条通道）
 		ConfigSync.registerServerReceivers();
+		ServerLifecycleEvents.SERVER_STARTED.register(server ->
+				EnchantmentRef.bindRegistry(server.getRegistryManager().get(RegistryKeys.ENCHANTMENT)));
 		// 服务器停止时清空近战粒子的待喷发队列
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MeleeParticles.clearBursts());
 
@@ -78,6 +75,6 @@ public class SummyEnchantment implements ModInitializer {
 
 	/** 构造本模组的命名空间 id */
 	public static Identifier id(String path) {
-		return new Identifier(MOD_ID, path);
+		return Identifier.of(MOD_ID, path);
 	}
 }

@@ -78,7 +78,7 @@ public abstract class LivingEntityMixin {
 	 */
 	@ModifyExpressionValue(
 			method = "startUsingItem(Lnet/minecraft/world/InteractionHand;)V",
-			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;getUseDuration()I")
+			at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/ItemStack;getUseDuration(Lnet/minecraft/world/entity/LivingEntity;)I")
 	)
 	private int summyEnchantment$quickEatUseTicks(int original) {
 		LivingEntity self = (LivingEntity) (Object) this;

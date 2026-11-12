@@ -365,5 +365,9 @@
   "text.summy_enchantment.option.electric_blade_damage_ratio": "电刀 每段倍率",
   "text.summy_enchantment.option.electric_blade_damage_ratio.tooltip": "每段伤害相对前一段的倍率，0.8 = 每段 -20%",
   "text.summy_enchantment.option.electric_blade_delay_ticks": "电刀 段间延迟",
-  "text.summy_enchantment.option.electric_blade_delay_ticks.tooltip": "每段之间的延迟（tick），2 tick = 0.1 秒"
+  "text.summy_enchantment.option.electric_blade_delay_ticks.tooltip": "每段之间的延迟（tick），2 tick = 0.1 秒",
+  "tag.item.summy_enchantment.spears": "矛",
+  "tag.item.summy_enchantment.bows_and_crossbows": "弓与弩",
+  "tag.item.summy_enchantment.sharp_weapons_and_spears": "利器与矛",
+  "tag.item.summy_enchantment.near_weapons_and_spears": "近战武器与矛"
 }

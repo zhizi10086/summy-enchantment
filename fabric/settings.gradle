@@ -1,5 +1,31 @@
 pluginManagement {
     repositories {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'SELocalMaven'
+                    url = uri('.gradle/se-local-maven')
+                }
+            }
+            filter {
+                includeGroup('gate.a.local')
+                includeModule('net.fabricmc', 'fabric-loom')
+                includeModule('net.fabricmc', 'mercury')
+                includeModule('net.fabricmc.unpick', 'unpick')
+                includeModule('net.fabricmc.unpick', 'unpick-format-utils')
+            }
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'HuaweiMappingIO'
+                    url = 'https://repo.huaweicloud.com/repository/maven/'
+                }
+            }
+            filter {
+                includeModule('net.fabricmc', 'mapping-io')
+            }
+        }
         maven {
             name = 'Fabric'
             url = 'https://maven.fabricmc.net/'

@@ -136,7 +136,7 @@ public class SummyEnchantmentConfigScreen extends Screen {
 
 	/** 只有"一屏放不下"时才滚动（正常情况不需要） */
 	@Override
-	public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+	public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double amount) {
 		int maxFirst = Math.max(0, this.currentOptions.length - this.visibleRows);
 		if (maxFirst > 0 && amount != 0.0D) {
 			int next = Math.max(0, Math.min(maxFirst, this.firstRow - (int) Math.signum(amount)));
@@ -146,12 +146,12 @@ public class SummyEnchantmentConfigScreen extends Screen {
 			}
 			return true;
 		}
-		return super.mouseScrolled(mouseX, mouseY, amount);
+		return super.mouseScrolled(mouseX, mouseY, horizontalAmount, amount);
 	}
 
 	@Override
 	public void render(GuiGraphics context, int mouseX, int mouseY, float delta) {
-		this.renderBackground(context);
+		this.renderBackground(context, mouseX, mouseY, delta);
 
 		for (Row row : this.rows) {
 			int textY = row.y + (row.height - 8) / 2;

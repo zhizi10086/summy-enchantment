@@ -4,6 +4,7 @@ import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.network.ConfigSync;
+import com.summy.enchantment.registry.EnchantmentRef;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -12,14 +13,14 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.network.PacketByteBuf;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantments;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.item.Items;
-import net.minecraft.potion.PotionUtil;
 import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.registry.RegistryKeys;
 import net.minecraft.text.Text;
 import net.minecraft.util.Formatting;
 
@@ -85,10 +86,10 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 		});
 
 		// 服务端主动索要粒子偏好：能收到就说明通道通了，直接回报（不做 canSend 门槛）
-		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.PARTICLE_REQUEST_CHANNEL,
-				(client, handler, buffer, responseSender) -> {
-					int protocolVersion = buffer.readVarInt();
-					client.execute(() -> {
+		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.ParticleRequestPayload.ID,
+				(payload, context) -> {
+					int protocolVersion = payload.protocolVersion();
+					context.client().execute(() -> {
 						serverSupportsLongDistanceParticles =
 								protocolVersion >= ConfigSync.LONG_DISTANCE_PROTOCOL_VERSION;
 						sendParticlePreferenceNow();
@@ -96,21 +97,24 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 				});
 
 		// 接收服务端同步的配置：只改内存，不写本地文件
-		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.CHANNEL, (client, handler, buffer, responseSender) -> {
-			String json = buffer.readString();
-			client.execute(() -> {
+		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.ConfigPayload.ID, (payload, context) ->
+				context.client().execute(() -> {
+					String json = payload.json();
 				SummyEnchantmentConfig.applyRemote(json);
 				usingServerConfig = true;
-			});
-		});
+				}));
 
 		// 1.3.7 轻盈：服务端同步"这支箭的等级"（实体 id + 等级），写进客户端表供重力换算
-		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.ARROW_LIGHTNESS_CHANNEL,
-				(client, handler, buffer, responseSender) -> {
-					int entityId = buffer.readVarInt();
-					int level = buffer.readVarInt();
-					client.execute(() -> ArrowTraits.setClientLightness(entityId, level));
-				});
+		ClientPlayNetworking.registerGlobalReceiver(ConfigSync.ArrowLightnessPayload.ID,
+				(payload, context) -> context.client().execute(() ->
+						ArrowTraits.setClientLightness(payload.entityId(), payload.level())));
+
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+			if (client.world != null) {
+				EnchantmentRef.bindRegistry(
+						client.world.getRegistryManager().get(RegistryKeys.ENCHANTMENT));
+			}
+		});
 
 		// 离开服务器/世界后，恢复成本地配置文件里的设置
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
@@ -124,7 +128,7 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 			}
 		}));
 
-		ItemTooltipCallback.EVENT.register((stack, tooltipContext, lines) -> {
+		ItemTooltipCallback.EVENT.register((stack, tooltipContext, tooltipType, lines) -> {
 			// 附魔书：追加本模组附魔的说明（数值跟着配置走）
 			if (stack.isOf(Items.ENCHANTED_BOOK)) {
 				List<Text> description = EnchantmentDescriptions.describe(stack);
@@ -157,7 +161,7 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 				}
 				// 带忠诚的物品（主要是三叉戟）：这一行常显，方便一眼看出"不会再丢"
 				if (SummyEnchantmentConfig.get().enableLoyaltyRework
-						&& EnchantmentHelper.getLoyalty(stack) > 0) {
+						&& EnchantmentRef.level(stack, Enchantments.LOYALTY) > 0) {
 					lines.add(Text.empty());
 					lines.add(Text.translatable("tooltip.summy_enchantment.desc.loyalty_rework")
 							.formatted(Formatting.GRAY));
@@ -176,14 +180,16 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 				return;
 			}
 			// 任何"携带药水效果且包含力量"的物品都会被补上说明（药水、喷溅、滞留、药箭，以及其它模组的同类物品）
-			List<StatusEffectInstance> effects = PotionUtil.getPotionEffects(stack);
-			for (StatusEffectInstance effect : effects) {
-				if (effect.getEffectType() == StatusEffects.STRENGTH) {
+			var potion = stack.get(DataComponentTypes.POTION_CONTENTS);
+			if (potion != null) {
+				for (StatusEffectInstance effect : potion.getEffects()) {
+					if (effect.getEffectType() == StatusEffects.STRENGTH) {
 					// 百分比跟着配置走：配置 1.3 -> +130%，配置 2 -> +200%
 					String percent = formatPercent(SummyEnchantmentConfig.get().strengthMultiplierPerLevel);
 					lines.add(Text.translatable("tooltip.summy_enchantment.strength_potion", percent)
 							.formatted(Formatting.GRAY));
 					return;
+					}
 				}
 			}
 		});
@@ -219,7 +225,7 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 	 * <p>服务端没装本模组（通道还没通）时返回 false，调用方会稍后重试。
 	 */
 	public static boolean sendParticlePreference() {
-		if (!ClientPlayNetworking.canSend(ConfigSync.PARTICLE_CHANNEL)) {
+		if (!ClientPlayNetworking.canSend(ConfigSync.ParticleStylePayload.ID)) {
 			return false;
 		}
 		sendParticlePreferenceNow();
@@ -242,16 +248,9 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 	/** 无条件发送当前粒子偏好 */
 	private static void sendParticlePreferenceNow() {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
-		PacketByteBuf buffer = PacketByteBufs.create();
-		buffer.writeVarInt(config.arrowParticle);
-		buffer.writeBoolean(config.arrowParticleLongDistance);
-		buffer.writeVarInt(config.arrowParticleDistance);
-		buffer.writeVarInt(config.meleeParticle);
-		buffer.writeVarInt(config.meleeSweepParticle);
-		buffer.writeVarInt(config.meleeParticleEffect);
-		buffer.writeVarInt(config.surpriseParticle);
-		buffer.writeVarInt(config.deathParticle);
-		buffer.writeVarInt(config.nimbleStepsSound);
-		ClientPlayNetworking.send(ConfigSync.PARTICLE_CHANNEL, buffer);
+		ClientPlayNetworking.send(new ConfigSync.ParticleStylePayload(
+				config.arrowParticle, config.arrowParticleLongDistance, config.arrowParticleDistance,
+				config.meleeParticle, config.meleeSweepParticle, config.meleeParticleEffect,
+				config.surpriseParticle, config.deathParticle, config.nimbleStepsSound));
 	}
 }

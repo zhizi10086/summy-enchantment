@@ -3,10 +3,11 @@ package com.summy.enchantment.registry;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.effect.SoulGraceStatusEffect;
 import com.summy.enchantment.effect.StrengthStatusEffect;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.registries.ForgeRegistries;
-import net.minecraftforge.registries.RegisterEvent;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.registries.RegisterEvent;
 
 /**
  * 自定义状态效果注册。
@@ -22,9 +23,9 @@ public final class ModStatusEffects {
 	/** 与原版力量同色（0x932423），视觉上无缝替换 */
 	public static final int STRENGTH_COLOR = 0x932423;
 
-	public static MobEffect STRENGTH;
+	public static Holder<MobEffect> STRENGTH;
 	/** 灵魂加护的冷却（纯可视化，权威计时在服务端） */
-	public static MobEffect SOUL_GRACE;
+	public static Holder<MobEffect> SOUL_GRACE;
 
 	/** 注册事件期间的临时引用，仅用于 register 辅助方法 */
 	private static RegisterEvent pendingEvent;
@@ -37,7 +38,7 @@ public final class ModStatusEffects {
 	}
 
 	private static void onRegister(RegisterEvent event) {
-		if (!ForgeRegistries.Keys.MOB_EFFECTS.equals(event.getRegistryKey())) {
+		if (!Registries.MOB_EFFECT.equals(event.getRegistryKey())) {
 			return;
 		}
 		pendingEvent = event;
@@ -50,8 +51,8 @@ public final class ModStatusEffects {
 	}
 
 	/** 注册并返回实例，方便直接写回静态字段 */
-	private static <T extends MobEffect> T register(String path, T effect) {
-		pendingEvent.register(ForgeRegistries.Keys.MOB_EFFECTS, SummyEnchantment.id(path), () -> effect);
-		return effect;
+	private static Holder<MobEffect> register(String path, MobEffect effect) {
+		pendingEvent.register(Registries.MOB_EFFECT, SummyEnchantment.id(path), () -> effect);
+		return pendingEvent.getRegistry(Registries.MOB_EFFECT).wrapAsHolder(effect);
 	}
 }

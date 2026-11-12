@@ -17,6 +17,7 @@ import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Final;
@@ -139,16 +140,19 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 			method = "tick",
 			at = @At(
 					value = "INVOKE",
-					target = "Lnet/minecraft/world/entity/projectile/AbstractArrow;setDeltaMovement(DDD)V"
+					target = "Lnet/minecraft/world/entity/projectile/AbstractArrow;applyGravity()V"
 			)
 	)
 	private void summyEnchantment$lightnessGravity(AbstractArrow arrow,
-			double velocityX, double proposedVelocityY, double velocityZ, Operation<Void> original) {
-		double currentVelocityY = arrow.getDeltaMovement().y;
-		double effectiveGravity = currentVelocityY - proposedVelocityY;
-		double adjustedVelocityY = currentVelocityY
-				- effectiveGravity * ArrowTraits.gravityFactor(arrow);
-		original.call(arrow, velocityX, adjustedVelocityY, velocityZ);
+			Operation<Void> original) {
+		Vec3 currentVelocity = arrow.getDeltaMovement();
+		original.call(arrow);
+		Vec3 proposedVelocity = arrow.getDeltaMovement();
+		double effectiveGravity = currentVelocity.y - proposedVelocity.y;
+		Vec3 adjustedVelocity = new Vec3(proposedVelocity.x,
+				currentVelocity.y - effectiveGravity * ArrowTraits.gravityFactor(arrow),
+				proposedVelocity.z);
+		arrow.setDeltaMovement(adjustedVelocity);
 	}
 
 	/**

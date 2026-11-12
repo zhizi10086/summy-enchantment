@@ -1,0 +1,27 @@
+{
+    "replace":  false,
+    "values":  [
+                   "summy_enchantment:sharpness_plus",
+                   "summy_enchantment:spellblade",
+                   "summy_enchantment:beheading",
+                   "summy_enchantment:auto_smelt",
+                   "summy_enchantment:arrow_velocity",
+                   "summy_enchantment:quick_draw",
+                   "summy_enchantment:life_shield",
+                   "summy_enchantment:health_boost",
+                   "summy_enchantment:lifesteal",
+                   "summy_enchantment:scholar",
+                   "summy_enchantment:calamity",
+                   "summy_enchantment:deaths_blessing",
+                   "summy_enchantment:quick_strike",
+                   "summy_enchantment:life_mending",
+                   "summy_enchantment:sturdy",
+                   "summy_enchantment:quick_eat",
+                   "summy_enchantment:big_stomach",
+                   "summy_enchantment:dead_mans_heart",
+                   "summy_enchantment:revenge",
+                   "summy_enchantment:lightness",
+                   "summy_enchantment:electric_blade",
+                   "summy_enchantment:hidden_blade"
+               ]
+}

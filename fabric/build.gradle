@@ -1,116 +1,135 @@
 plugins {
-    id 'fabric-loom' version '1.7.4'
+    id 'fabric-loom' version "${loom_version}"
     id 'maven-publish'
 }
 
 version = project.mod_version
 group = project.maven_group
 
-def spearVersion = (project.findProperty('spearVersion') ?: '1.5.0').toString()
-if (spearVersion != '1.4.7' && spearVersion != '1.5.0') {
-    throw new GradleException("spearVersion 仅支持 1.4.7 或 1.5.0，当前为 ${spearVersion}")
-}
-def spearJar = file("libs/spear-backport-fabric-${spearVersion}-1.20.1.jar")
-if (!spearJar.exists()) {
-    throw new GradleException("缺少矛模组编译/自检 JAR：${spearJar}")
-}
-
 base {
     archivesName = project.archives_base_name
 }
 
 repositories {
-    mavenCentral()
-    // Mod Menu 所在的仓库
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'SELocalMaven'
+                url = uri('.gradle/se-local-maven')
+            }
+        }
+        filter {
+            includeGroup('org.ow2.asm')
+            includeGroup('io.github.llamalad7')
+            includeModule('net.fabricmc', 'dev-launch-injector')
+            includeModule('net.fabricmc', 'fabric-log4j-util')
+            includeModule('net.fabricmc', 'intermediary')
+            includeModule('net.fabricmc', 'sponge-mixin')
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'HuaweiMappingIO'
+                url = 'https://repo.huaweicloud.com/repository/maven/'
+            }
+        }
+        filter {
+            includeModule('net.fabricmc', 'mapping-io')
+        }
+    }
+    maven {
+        name = 'Fabric'
+        url = 'https://maven.fabricmc.net/'
+    }
     maven {
         name = 'TerraformersMC'
         url = 'https://maven.terraformersmc.com/releases/'
+    }
+    mavenCentral()
+}
+
+loom {
+    mixin {
+        useLegacyMixinAp = false
     }
 }
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
-    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
 
-    // MixinExtras 的 @WrapOperation/@ModifyReturnValue 让注入与其它模组可叠加（不像 @Redirect 那样互斥）。
-    // Fabric Loader 0.18.4 已内置 mixinextras-fabric-0.5.0（位于 loader jar 的 META-INF/jars），
-    // 因此这里只做编译期依赖，不 include，避免生产包里出现重复副本。
-    compileOnly "io.github.llamalad7:mixinextras-fabric:0.5.0"
-
-    // Mod Menu：只在编译期依赖，运行期完全可选（没装 Mod Menu 时模组照常工作，只是没有图形配置页）
-    modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
-
-    // 矛模组 Backported Spears：**只在编译期**用于让 Mixin 注解处理器能校验兼容 Mixin 的目标类
-    // （生产 jar 是 intermediary 名，必须用 modCompileOnly 让 Loom 重映射成 yarn 名才能解析继承链）。
-    // 该模组是 CC0 许可，jar 放在 libs/ 便于复现构建；运行期完全可选（没装矛模组时兼容代码不生效）。
-    modCompileOnly files(spearJar)
-    if (project.hasProperty('devcheck')) {
-        // devcheck 的实际运行版本由 -PspearVersion 控制；Loom 负责生产 JAR 的开发态重映射。
-        modRuntimeOnly files(spearJar)
+    // 1.21.1 的映射、Loader 与 Fabric API 使用已验证的稳定本地缓存。
+    mappings files(".gradle/se-local/yarn-${project.yarn_mappings}-v2.jar")
+    modImplementation files('.gradle/se-local/fabric-loader-0.20.1.jar')
+    modCompileOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
+    modRuntimeOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
+    // Fabric API 元 JAR 仅供开发运行；正式依赖仍由 fabric.mod.json 声明，不进入发布产物。
+    def fabricApiRuntimeJar = file(".gradle/se-local/fabric-api-${project.fabric_version}.jar")
+    if (fabricApiRuntimeJar.isFile()) {
+        modRuntimeOnly files(fabricApiRuntimeJar)
     }
 
-    // Summy Reliquary：它只产出 Forge 版 jar，这里只用于让注解处理器能解析兼容 Mixin 的
-    // @Mixin(targets = ...)；不进产物、也不参与 Loom 重映射，运行期由 Kilt/Connector 提供真实类。
-    compileOnly files('libs/summy-reliquary-1.8.5-forge.jar')
-
-    // KubeJS：只用于编译可选插件；运行期由玩家自行安装，不 include、不打包。
-    // 使用本地 jar，避免 Latvian Maven 在当前网络下反复超时。
-    modCompileOnly files('libs/kubejs-fabric-2001.6.5-build.16.jar')
-    // Rhino 是 KubeJS 事件 API 的编译期父类依赖，同样只在本地参与编译，不进入产物。
-    compileOnly files('libs/rhino-fabric-2001.2.3-build.10.jar')
-
-    // 仅在显式传 -PkubejsModsDir=... 时，把官方 KubeJS/Rhino/Architectury 生产 JAR
-    // 交给 Loom 重映射后加入开发运行期，用于真实脚本与事件自检。不会进入正式产物。
-    if (project.hasProperty('kubejsModsDir')) {
-        def kubejsRoot = file(project.property('kubejsModsDir'))
-        def kubejsVersion = project.findProperty('kubejsVersion') ?: '2001.6.5-build.16'
-        def rhinoVersion = project.findProperty('rhinoVersion') ?: '2001.2.3-build.10'
-        def architecturyVersion = project.findProperty('architecturyVersion') ?: '9.2.14'
-        modRuntimeOnly files(
-                new File(kubejsRoot, "kubejs-fabric-${kubejsVersion}.jar"),
-                new File(kubejsRoot, "rhino-fabric-${rhinoVersion}.jar"),
-                new File(kubejsRoot, "architectury-${architecturyVersion}-fabric.jar")
-        )
+    // 编译期 Mixin API；运行时由 Fabric Loader 提供。
+    compileOnly('net.fabricmc:sponge-mixin:0.17.5+mixin.0.8.7') {
+        transitive = false
     }
 
-    // 真实客户端自检用的官方 Majrusz Fabric 包只在显式指定测试目录时加入运行期；
-    // 不参与编译、不打包进正式 jar，也不影响未启用 devcheck 的普通开发客户端。
-    if (project.hasProperty('devcheck') && project.hasProperty('externalModsDir')) {
-        def externalRoot = file(project.property('externalModsDir'))
-        modRuntimeOnly files(
-                new File(externalRoot, 'majrusz-library-fabric-1.20.1-7.0.8.jar'),
-                new File(externalRoot, 'majruszs-enchantments-fabric-1.20.1-1.10.8.jar')
-        )
+    // Mod Menu 只在编译期校验配置页入口，运行期保持可选。
+    if (!project.hasProperty('coreOnly')) {
+        modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
     }
+}
+
+if (project.hasProperty('coreOnly')) {
+    sourceSets.main.java.exclude 'com/summy/enchantment/client/SummyEnchantmentModMenu.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/kubejs/**'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/**'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SpearItemCompatMixin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
+    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
 }
 
 processResources {
     inputs.property 'version', project.version
 
+    if (project.hasProperty('coreOnly')) {
+        exclude 'kubejs.plugins.txt'
+        exclude 'summy_enchantment.spears.mixins.json'
+        exclude 'summy_enchantment.summy_reliquary.mixins.json'
+    }
+
     filesMatching('fabric.mod.json') {
         expand 'version': project.version
+    }
+
+    doLast {
+        if (!project.hasProperty('coreOnly')) {
+            return
+        }
+        def metadataFile = layout.buildDirectory.file('resources/main/fabric.mod.json').get().asFile
+        def metadata = new groovy.json.JsonSlurper().parse(metadataFile)
+        metadata.entrypoints.remove('modmenu')
+        metadata.mixins = metadata.mixins.findAll { it == 'summy_enchantment.mixins.json' }
+        metadataFile.setText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(metadata)), 'UTF-8')
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
-    // 本机只装了 JDK 21，因此用 JDK 21 编译、产物字节码锁定 Java 17（Minecraft 1.20.1 的运行目标）
-    it.options.release = 17
-    // Fabric 侧的 Summy Reliquary 兼容 Mixin 目标是 Forge 版 jar（Mojang 名），它的继承链与
-    // Yarn 类路径对不上，Mixin 注解处理器会报 "Superclass ... was not found in the hierarchy"。
-    // 关掉目标校验即可（运行期仍由 Mixin 自己校验，且所有注入点都有 require = 0 兜底）。
-    it.options.compilerArgs.add('-AdisableTargetValidator=true')
+    options.release = 21
+    options.encoding = 'UTF-8'
+    options.compilerArgs.add('-AdisableTargetValidator=true')
 }
 
 java {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
     withSourcesJar()
 }
 
 jar {
-    // 正式发布不含开发自检；显式 -Pdevcheck 构建时才保留，便于复现实机测试。
     if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
     }
@@ -122,56 +141,5 @@ jar {
 tasks.named('sourcesJar') {
     if (!project.hasProperty('devcheck')) {
         exclude 'com/summy/enchantment/devcheck/**'
-    }
-}
-
-// 构建结束后把 remap 后的 jar 复制到 MC mod/JAR 统一发布目录
-tasks.named('build') {
-    doLast {
-        def releaseDir = file("../../../JAR/${project.minecraft_version}/summy-enchantment")
-        releaseDir.mkdirs()
-        copy {
-            from tasks.named('remapJar').get().archiveFile
-            into releaseDir
-        }
-    }
-}
-
-// 自检只由显式参数打开；专用世界由测试脚本准备，脚本结束会自行退出客户端。
-tasks.named('runClient') {
-    if (project.hasProperty('devcheck')) {
-        jvmArgs '-Dsummy_enchantment.devcheck=true'
-        jvmArgs "-Dsummy_enchantment.devcheck.mode=${project.findProperty('devcheckMode') ?: 'full'}"
-        args '--quickPlaySingleplayer', 'SeDevCheckWorld'
-        if (project.hasProperty('externalModsDir')) {
-            dependsOn 'copyExternalCompatScanJars'
-        }
-    }
-}
-
-// 开发和实机自检共用仓库内的 KubeJS 脚本，测试结束清理 run/ 后仍可一键复现。
-tasks.register('prepareKubeJsSelfTest', Copy) {
-    from file('../tools/kubejs-selftest')
-    into layout.projectDirectory.dir('run/kubejs')
-}
-
-if (project.hasProperty('kubejsModsDir')) {
-    tasks.matching { it.name == 'runClient' || it.name == 'runServer' }.configureEach {
-        dependsOn 'prepareKubeJsSelfTest'
-    }
-}
-
-apply from: file('../tools/verify-kubejs-selftest.gradle')
-apply from: file('../tools/verify-spear-selftest.gradle')
-
-// Majrusz Library 的开发态 ClassFinder 只扫描 run/libs 与 run/mods。
-// Loom 负责把类本身重映射并加入类路径，这里保留官方原包供其扫描。
-if (project.hasProperty('devcheck') && project.hasProperty('externalModsDir')) {
-    tasks.register('copyExternalCompatScanJars', Copy) {
-        from(file(project.property('externalModsDir'))) {
-            include 'majrusz-library-fabric-1.20.1-7.0.8.jar'
-            include 'majruszs-enchantments-fabric-1.20.1-1.10.8.jar'
-        }
-        into layout.projectDirectory.dir('run/libs')
     }
 }

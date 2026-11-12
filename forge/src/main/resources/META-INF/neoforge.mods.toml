@@ -1,0 +1,32 @@
+modLoader = "javafml"
+loaderVersion = "[1,)"
+license = "MIT"
+issueTrackerURL = "https://github.com/zhizi10086/Summy-Enchantment/issues"
+displayURL = "https://www.mcmod.cn/class/23213.html"
+
+[[mods]]
+modId = "summy_enchantment"
+version = "${version}"
+displayName = "Summy Enchantment"
+logoFile = "icon.png"
+authors = "Summy"
+description = '''
+Summy Enchantment for Minecraft 1.21.1 NeoForge.
+'''
+
+[[mixins]]
+config = "summy_enchantment.mixins.json"
+
+[[dependencies.summy_enchantment]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21.1.265,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.summy_enchantment]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1]"
+ordering = "NONE"
+side = "BOTH"

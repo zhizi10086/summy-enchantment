@@ -5,13 +5,11 @@ import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.AbstractCookingRecipe;
 import net.minecraft.recipe.RecipeType;
+import net.minecraft.recipe.input.SingleStackRecipeInput;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
@@ -49,7 +47,7 @@ public abstract class BlockMixin {
 		if (player.isSneaking()) {
 			return;
 		}
-		if (EnchantmentHelper.getLevel(ModEnchantments.AUTO_SMELT, tool) <= 0) {
+		if (ModEnchantments.AUTO_SMELT.level(tool) <= 0) {
 			return;
 		}
 		List<ItemStack> drops = Block.getDroppedStacks(state, serverWorld, pos, blockEntity, entity, tool);
@@ -75,9 +73,8 @@ public abstract class BlockMixin {
 			return ItemStack.EMPTY;
 		}
 		return world.getRecipeManager()
-				.getFirstMatch(RecipeType.SMELTING, new SimpleInventory(input), world)
-				.filter(recipe -> recipe instanceof AbstractCookingRecipe)
-				.map(recipe -> ((AbstractCookingRecipe) recipe).getOutput(world.getRegistryManager()))
+				.getFirstMatch(RecipeType.SMELTING, new SingleStackRecipeInput(input), world)
+				.map(recipe -> recipe.value().getResult(world.getRegistryManager()))
 				.filter(output -> !output.isEmpty())
 				.orElse(ItemStack.EMPTY);
 	}

@@ -8,15 +8,17 @@ import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.network.ParticlePreferences;
 import com.summy.enchantment.network.ConfigSync;
 import com.summy.enchantment.particle.ArrowParticleCarrier;
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModAttributes;
 import com.summy.enchantment.registry.ModEnchantments;
 import com.summy.enchantment.registry.ModStatusEffects;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.EnchantmentHelper;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.ResolvableProfile;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
-import net.minecraft.world.entity.MobType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attribute;
@@ -75,11 +77,11 @@ import java.util.WeakHashMap;
  */
 public final class EnchantmentEffects {
 	/** 生命提升的属性修饰符 id */
-	private static final UUID HEALTH_BOOST_MODIFIER_ID = UUID.fromString("3f2a9c14-6b7d-4c8e-9a1b-2d5e7f809a01");
+	private static final ResourceLocation HEALTH_BOOST_MODIFIER_ID = SummyEnchantment.id("health_boost");
 	/** 迅捷打击的属性修饰符 id */
-	private static final UUID QUICK_STRIKE_MODIFIER_ID = UUID.fromString("7c1d4e28-9a3b-4f56-8c7d-1e2f3a4b5c02");
+	private static final ResourceLocation QUICK_STRIKE_MODIFIER_ID = SummyEnchantment.id("quick_strike");
 	/** 死者之心的最大生命修饰符 id */
-	private static final UUID DEAD_MANS_HEART_MODIFIER_ID = UUID.fromString("9b7e5c31-4a2d-4f80-b3c6-8d1e2f304a03");
+	private static final ResourceLocation DEAD_MANS_HEART_MODIFIER_ID = SummyEnchantment.id("dead_mans_heart");
 	/** 复仇窗口：玩家 UUID → 窗口结束的世界 tick */
 	private static final Map<UUID, Long> REVENGE_WINDOW = new ConcurrentHashMap<>();
 	/** 灵魂加护冷却：玩家 UUID → 可再次触发的世界 tick */
@@ -104,36 +106,36 @@ public final class EnchantmentEffects {
 
 	// ==================== 装备附魔等级 ====================
 
-	public static int mainHandLevel(LivingEntity entity, Enchantment enchantment) {
+	public static int mainHandLevel(LivingEntity entity, EnchantmentRef enchantment) {
 		if (entity.tickCount <= 0) {
 			return 0;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(enchantment, entity.getMainHandItem());
+		return enchantment.level(entity.getMainHandItem());
 	}
 
-	public static int chestLevel(LivingEntity entity, Enchantment enchantment) {
+	public static int chestLevel(LivingEntity entity, EnchantmentRef enchantment) {
 		if (entity.tickCount <= 0) {
 			return 0;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(enchantment, entity.getItemBySlot(EquipmentSlot.CHEST));
+		return enchantment.level(entity.getItemBySlot(EquipmentSlot.CHEST));
 	}
 
-	public static int helmetLevel(LivingEntity entity, Enchantment enchantment) {
+	public static int helmetLevel(LivingEntity entity, EnchantmentRef enchantment) {
 		if (entity.tickCount <= 0) {
 			return 0;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(enchantment, entity.getItemBySlot(EquipmentSlot.HEAD));
+		return enchantment.level(entity.getItemBySlot(EquipmentSlot.HEAD));
 	}
 
 	/** 4 件盔甲的等级之和（生命提升用） */
-	public static int armorLevelSum(LivingEntity entity, Enchantment enchantment) {
+	public static int armorLevelSum(LivingEntity entity, EnchantmentRef enchantment) {
 		if (entity.tickCount <= 0) {
 			// 构造期间装备容器尚未建立，直接视为没有附魔
 			return 0;
 		}
 		int total = 0;
 		for (EquipmentSlot slot : ARMOR_SLOTS) {
-			total += EnchantmentHelper.getItemEnchantmentLevel(enchantment, entity.getItemBySlot(slot));
+			total += enchantment.level(entity.getItemBySlot(slot));
 		}
 		return total;
 	}
@@ -144,8 +146,8 @@ public final class EnchantmentEffects {
 	 * <p>近战取攻击者主手，投掷三叉戟取"三叉戟本体"（此时主手未必拿着它），
 	 * 所以战斗入口统一用这个方法取等级，而不是一律读主手。
 	 */
-	public static int levelOf(ItemStack stack, Enchantment enchantment) {
-		return stack == null || stack.isEmpty() ? 0 : EnchantmentHelper.getItemEnchantmentLevel(enchantment, stack);
+	public static int levelOf(ItemStack stack, EnchantmentRef enchantment) {
+		return enchantment == null ? 0 : enchantment.level(stack);
 	}
 
 	// ==================== 死神祝福 ====================
@@ -197,7 +199,8 @@ public final class EnchantmentEffects {
 	 * 整合包可以往 {@code data/<包>/tags/damage_type/no_deaths_blessing_outgoing.json} 里增删。
 	 */
 	private static final TagKey<DamageType> NO_DEATHS_BLESSING_OUTGOING = TagKey.create(
-			Registries.DAMAGE_TYPE, new ResourceLocation("summy_enchantment", "no_deaths_blessing_outgoing"));
+			Registries.DAMAGE_TYPE,
+			ResourceLocation.fromNamespaceAndPath("summy_enchantment", "no_deaths_blessing_outgoing"));
 
 	/** 这一击是否算"由该实体直接造成"（排除 TNT、火焰等间接来源） */
 	public static boolean isDirectDamageFrom(LivingEntity attacker, DamageSource source) {
@@ -286,14 +289,14 @@ public final class EnchantmentEffects {
 			return;
 		}
 		if (!(stack.getItem() instanceof BowItem)
-				|| EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.SKY_WISH, stack) <= 0) {
+				|| ModEnchantments.SKY_WISH.level(stack) <= 0) {
 			return;
 		}
 		int fullTicks = skyWishFullChargeTicks(config);
 		if (fullTicks <= 0) {
 			return;
 		}
-		int drawnTicks = Math.max(0, stack.getUseDuration() - remainingUseTicks);
+		int drawnTicks = Math.max(0, stack.getUseDuration(user) - remainingUseTicks);
 		if (drawnTicks < fullTicks) {
 			return;
 		}
@@ -421,7 +424,7 @@ public final class EnchantmentEffects {
 	public static boolean isLoyaltyReworkActive(ItemStack stack) {
 		return SummyEnchantmentConfig.get().enableLoyaltyRework
 				&& !stack.isEmpty()
-				&& EnchantmentHelper.getLoyalty(stack) > 0;
+				&& EnchantmentRef.level(stack, Enchantments.LOYALTY) > 0;
 	}
 
 	/**
@@ -545,7 +548,7 @@ public final class EnchantmentEffects {
 			if (stack.isEmpty() || !stack.isDamageableItem() || stack.getDamageValue() <= 0) {
 				continue;
 			}
-			int level = EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.LIFE_MENDING, stack);
+			int level = ModEnchantments.LIFE_MENDING.level(stack);
 			if (level <= 0) {
 				continue;
 			}
@@ -569,7 +572,7 @@ public final class EnchantmentEffects {
 		if (!config.enableSturdy || ModEnchantments.STURDY == null || stack.isEmpty()) {
 			return Integer.MAX_VALUE;
 		}
-		int level = EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.STURDY, stack);
+		int level = ModEnchantments.STURDY.level(stack);
 		if (level <= 0) {
 			return Integer.MAX_VALUE;
 		}
@@ -689,7 +692,7 @@ public final class EnchantmentEffects {
 		if (!config.enableMultishotAllHit || weapon.isEmpty()) {
 			return;
 		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(Enchantments.MULTISHOT, weapon) > 0) {
+		if (EnchantmentRef.level(weapon, Enchantments.MULTISHOT) > 0) {
 			markExtraHitArrow(arrow);
 		}
 	}
@@ -795,7 +798,7 @@ public final class EnchantmentEffects {
 		if (player.getAbilities().instabuild) {
 			return true;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, weapon) > 0 || hasEndlessQuiver(weapon);
+		return EnchantmentRef.level(weapon, Enchantments.INFINITY) > 0 || hasEndlessQuiver(weapon);
 	}
 
 	/** 弩：这件弩是否"无弹药也能射出普通箭"（创造模式由原版判定，这里只管无限/无尽箭袋） */
@@ -804,7 +807,7 @@ public final class EnchantmentEffects {
 		if (!config.enableCrossbowCompat || weapon.isEmpty()) {
 			return false;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, weapon) > 0 || hasEndlessQuiver(weapon);
+		return EnchantmentRef.level(weapon, Enchantments.INFINITY) > 0 || hasEndlessQuiver(weapon);
 	}
 
 	/** 这次射击的弹药是否不被消耗（无限仅普通箭；无尽箭袋则任何箭矢） */
@@ -813,20 +816,20 @@ public final class EnchantmentEffects {
 		if (config.enableEndlessQuiver && hasEndlessQuiver(weapon)) {
 			return true;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, weapon) > 0 && ammo.is(Items.ARROW);
+		return EnchantmentRef.level(weapon, Enchantments.INFINITY) > 0 && ammo.is(Items.ARROW);
 	}
 
 	/** 是否带本模组的"无尽箭袋"（且开关打开） */
 	public static boolean hasEndlessQuiver(ItemStack weapon) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		return config.enableEndlessQuiver && ModEnchantments.ENDLESS_QUIVER != null
-				&& EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.ENDLESS_QUIVER, weapon) > 0;
+				&& ModEnchantments.ENDLESS_QUIVER.level(weapon) > 0;
 	}
 
 	/** 弩上的"无限"是否生效（受弩兼容开关控制，与原版弓语义一致：仅普通箭） */
 	public static boolean crossbowInfinityApplies(ItemStack weapon, ItemStack ammo) {
 		return SummyEnchantmentConfig.get().enableCrossbowCompat
-				&& EnchantmentHelper.getItemEnchantmentLevel(Enchantments.INFINITY_ARROWS, weapon) > 0
+				&& EnchantmentRef.level(weapon, Enchantments.INFINITY) > 0
 				&& ammo.is(Items.ARROW);
 	}
 
@@ -836,7 +839,7 @@ public final class EnchantmentEffects {
 		if (!config.enableArrowVelocity || ModEnchantments.ARROW_VELOCITY == null) {
 			return 1.0F;
 		}
-		int level = EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.ARROW_VELOCITY, weapon);
+		int level = ModEnchantments.ARROW_VELOCITY.level(weapon);
 		return level <= 0 ? 1.0F : 1.0F + config.arrowVelocityBonusPerLevel * level;
 	}
 
@@ -1129,7 +1132,7 @@ public final class EnchantmentEffects {
 			healthBonus = armorLevelSum(entity, ModEnchantments.HEALTH_BOOST) * config.healthBoostPerLevel;
 		}
 		applyModifier(entity, Attributes.MAX_HEALTH, HEALTH_BOOST_MODIFIER_ID,
-				"summy_enchantment:health_boost", AttributeModifier.Operation.ADDITION, healthBonus);
+				AttributeModifier.Operation.ADD_VALUE, healthBonus);
 
 		// 死者之心：最大生命 ×1.5（乘法修饰符，与生命提升的加法项叠加）
 		double heartMultiplier = 0.0D;
@@ -1138,18 +1141,17 @@ public final class EnchantmentEffects {
 			heartMultiplier = config.deadMansHeartHealthBonus;
 		}
 		applyModifier(entity, Attributes.MAX_HEALTH, DEAD_MANS_HEART_MODIFIER_ID,
-				"summy_enchantment:dead_mans_heart",
-				AttributeModifier.Operation.MULTIPLY_TOTAL, heartMultiplier);
+				AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL, heartMultiplier);
 
 		double speedBonus = 0.0D;
 		if (config.enableQuickStrike && ModEnchantments.QUICK_STRIKE != null) {
 			speedBonus = mainHandLevel(entity, ModEnchantments.QUICK_STRIKE) * config.quickStrikeBonusPerLevel;
 		}
 		applyModifier(entity, Attributes.ATTACK_SPEED, QUICK_STRIKE_MODIFIER_ID,
-				"summy_enchantment:quick_strike", AttributeModifier.Operation.ADDITION, speedBonus);
+				AttributeModifier.Operation.ADD_VALUE, speedBonus);
 	}
 
-	private static void applyModifier(LivingEntity entity, Attribute attribute, UUID id, String name,
+	private static void applyModifier(LivingEntity entity, Holder<Attribute> attribute, ResourceLocation id,
 			AttributeModifier.Operation operation, double value) {
 		AttributeInstance instance = entity.getAttribute(attribute);
 		if (instance == null) {
@@ -1163,13 +1165,13 @@ public final class EnchantmentEffects {
 			}
 			return;
 		}
-		if (existing != null && Math.abs(existing.getAmount() - value) < 1.0E-6D) {
+		if (existing != null && Math.abs(existing.amount() - value) < 1.0E-6D) {
 			return;
 		}
 		if (existing != null) {
 			instance.removeModifier(id);
 		}
-		instance.addPermanentModifier(new AttributeModifier(id, name, value, operation));
+		instance.addPermanentModifier(new AttributeModifier(id, value, operation));
 	}
 
 	// ==================== 恶咒 ====================
@@ -1198,16 +1200,6 @@ public final class EnchantmentEffects {
 	 * <p>三叉戟上只有穿刺会用到生物类型，所以这个替换不会干扰其它附魔。
 	 * 目标"接触水或淋雨"视为水生；但"泡在水里且乘船"不算。
 	 */
-	public static MobType impalingGroupFor(@Nullable LivingEntity target, MobType original) {
-		if (!SummyEnchantmentConfig.get().enableImpalingBedrockRule || target == null) {
-			return original;
-		}
-		// "淋雨"用世界判定：该位置正在下雨且没有被遮挡
-		boolean wet = target.isInWater() || target.level().isRainingAt(target.blockPosition());
-		boolean onBoatInWater = target.isInWater() && target.isPassenger();
-		return wet && !onBoatInWater ? MobType.WATER : MobType.UNDEFINED;
-	}
-
 	// ==================== 弩兼容 ====================
 
 	/** 弩射出的箭：把原版弓的附魔（力量/火矢/冲击）搬到弩上，数值与原版弓一致 */
@@ -1215,16 +1207,12 @@ public final class EnchantmentEffects {
 		if (!SummyEnchantmentConfig.get().enableCrossbowCompat) {
 			return;
 		}
-		int power = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.POWER_ARROWS, crossbow);
+		int power = EnchantmentRef.level(crossbow, Enchantments.POWER);
 		if (power > 0) {
 			arrow.setBaseDamage(arrow.getBaseDamage() + power * 0.5 + 0.5);
 		}
-		int punch = EnchantmentHelper.getItemEnchantmentLevel(Enchantments.PUNCH_ARROWS, crossbow);
-		if (punch > 0) {
-			arrow.setKnockback(punch);
-		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(Enchantments.FLAMING_ARROWS, crossbow) > 0) {
-			arrow.setSecondsOnFire(5);
+		if (EnchantmentRef.level(crossbow, Enchantments.FLAME) > 0) {
+			arrow.igniteForSeconds(5);
 		}
 	}
 
@@ -1257,8 +1245,7 @@ public final class EnchantmentEffects {
 	public static ItemStack headFor(LivingEntity victim) {
 		if (victim instanceof Player player) {
 			ItemStack stack = new ItemStack(Items.PLAYER_HEAD);
-			CompoundTag nbt = stack.getOrCreateTag();
-			NbtUtils.writeGameProfile(nbt, player.getGameProfile());
+			stack.set(DataComponents.PROFILE, new ResolvableProfile(player.getGameProfile()));
 			return stack;
 		}
 		EntityType<?> type = victim.getType();
@@ -1285,7 +1272,7 @@ public final class EnchantmentEffects {
 	/** 拉满弓所需 tick 数（速射会缩短，最低 1 tick） */
 	public static int requiredDrawTicks(ItemStack bow) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
-		int level = ModEnchantments.QUICK_DRAW == null ? 0 : EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.QUICK_DRAW, bow);
+		int level = ModEnchantments.QUICK_DRAW.level(bow);
 		float seconds = 1.0F - config.quickDrawSecondsPerLevel * level;
 		return Math.max(1, Math.round(seconds * 20.0F));
 	}
@@ -1303,14 +1290,14 @@ public final class EnchantmentEffects {
 		if (!(active.getItem() instanceof BowItem)) {
 			return;
 		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.INSTINCTIVE_RELEASE, active) <= 0) {
+		if (ModEnchantments.INSTINCTIVE_RELEASE.level(active) <= 0) {
 			return;
 		}
 		if (player.getTicksUsingItem() < requiredDrawTicks(active)) {
 			return;
 		}
 		InteractionHand hand = player.getUsedItemHand();
-		int remainingUseTicks = Math.max(0, active.getUseDuration() - player.getTicksUsingItem());
+		int remainingUseTicks = Math.max(0, active.getUseDuration(player) - player.getTicksUsingItem());
 		player.stopUsingItem();      // 结束使用状态（内部那次 onStoppedUsing 的计时已被重置，威力为 0 会直接返回）
 		// 用正确的剩余时间再触发一次释放，箭才会真正射出去
 		active.releaseUsing(player.level(), player, remainingUseTicks);
@@ -1418,7 +1405,7 @@ public final class EnchantmentEffects {
 		if (!config.enableQuickEat || ModEnchantments.QUICK_EAT == null || stack.isEmpty()) {
 			return originalTicks;
 		}
-		if (!stack.getItem().isEdible()) {
+		if (!stack.has(DataComponents.FOOD)) {
 			return originalTicks;
 		}
 		int level = helmetLevel(entity, ModEnchantments.QUICK_EAT);
@@ -1611,7 +1598,7 @@ public final class EnchantmentEffects {
 	/** 清掉全部负面（非增益）效果；遍历副本，避免边遍历边删 */
 	public static void clearNegativeEffects(LivingEntity entity) {
 		for (MobEffectInstance effect : new java.util.ArrayList<>(entity.getActiveEffects())) {
-			if (!effect.getEffect().isBeneficial()) {
+			if (!effect.getEffect().value().isBeneficial()) {
 				entity.removeEffect(effect.getEffect());
 			}
 		}
@@ -1626,7 +1613,8 @@ public final class EnchantmentEffects {
 	 * 例如 Summy Reliquary: Apocrypha 的「元素伤害」按需求"无视闪避"，就是挂在这个标签上的。
 	 */
 	private static final net.minecraft.tags.TagKey<DamageType> NO_DODGE_TAG = net.minecraft.tags.TagKey.create(
-			Registries.DAMAGE_TYPE, new ResourceLocation("summy_enchantment", "no_dodge"));
+			Registries.DAMAGE_TYPE,
+			ResourceLocation.fromNamespaceAndPath("summy_enchantment", "no_dodge"));
 
 	/**
 	 * 灵动步伐：按几率完全无效化这次伤害。
@@ -1649,7 +1637,7 @@ public final class EnchantmentEffects {
 		if (!config.enableNimbleSteps || ModEnchantments.NIMBLE_STEPS == null || victim.tickCount <= 0) {
 			return false;
 		}
-		int level = EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.NIMBLE_STEPS,
+		int level = ModEnchantments.NIMBLE_STEPS.level(
 				victim.getItemBySlot(EquipmentSlot.FEET));
 		if (level <= 0) {
 			return false;
@@ -1710,11 +1698,11 @@ public final class EnchantmentEffects {
 	}
 
 	/** 裤子槽的附魔等级（构造期间装备容器还没建立，直接视为 0） */
-	public static int legsLevel(LivingEntity entity, Enchantment enchantment) {
+	public static int legsLevel(LivingEntity entity, EnchantmentRef enchantment) {
 		if (entity.tickCount <= 0) {
 			return 0;
 		}
-		return EnchantmentHelper.getItemEnchantmentLevel(enchantment, entity.getItemBySlot(EquipmentSlot.LEGS));
+		return enchantment.level(entity.getItemBySlot(EquipmentSlot.LEGS));
 	}
 
 	/**
@@ -1858,7 +1846,7 @@ public final class EnchantmentEffects {
 		if (state[1] != 0L) {
 			state[1] = 0L;
 		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.HIDDEN_BLADE, player.getMainHandItem()) <= 0) {
+		if (ModEnchantments.HIDDEN_BLADE.level(player.getMainHandItem()) <= 0) {
 			// 不在主手：暂停累积，但已攒的层数保留
 			return;
 		}
@@ -1874,7 +1862,7 @@ public final class EnchantmentEffects {
 				|| ModEnchantments.HIDDEN_BLADE == null) {
 			return;
 		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.HIDDEN_BLADE, player.getMainHandItem()) <= 0) {
+		if (ModEnchantments.HIDDEN_BLADE.level(player.getMainHandItem()) <= 0) {
 			return;
 		}
 		long[] state = HIDDEN_BLADE_STATE.get(player.getUUID());
@@ -1899,7 +1887,7 @@ public final class EnchantmentEffects {
 		if (player == null || !config.enableHiddenBlade || ModEnchantments.HIDDEN_BLADE == null) {
 			return;
 		}
-		if (EnchantmentHelper.getItemEnchantmentLevel(ModEnchantments.HIDDEN_BLADE, player.getMainHandItem()) <= 0) {
+		if (ModEnchantments.HIDDEN_BLADE.level(player.getMainHandItem()) <= 0) {
 			return;
 		}
 		int chargedTicks = hiddenBladeChargedTicks(player);

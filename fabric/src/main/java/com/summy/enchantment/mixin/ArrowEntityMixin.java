@@ -5,15 +5,13 @@ import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.projectile.ArrowEntity;
-import net.minecraft.potion.Potion;
-import org.spongepowered.asm.mixin.Final;
+import net.minecraft.component.type.PotionContentsComponent;
+import net.minecraft.registry.tag.EntityTypeTags;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.Set;
 
 /**
  * 药水箭的瞬间伤害段不再被箭矢的无敌帧吞掉。
@@ -28,24 +26,22 @@ import java.util.Set;
 @Mixin(ArrowEntity.class)
 public abstract class ArrowEntityMixin {
 	@Shadow
-	private Potion potion;
-
-	@Shadow
-	@Final
-	private Set<StatusEffectInstance> effects;
+	private PotionContentsComponent getPotionContents() {
+		throw new AssertionError();
+	}
 
 	@Inject(method = "onHit", at = @At("HEAD"))
 	private void summyEnchantment$potionArrowFullDamage(LivingEntity target, CallbackInfo ci) {
 		if (!SummyEnchantmentConfig.get().enablePotionArrowFullDamage) {
 			return;
 		}
-		if (hasInstantEffect(this.potion, target) || this.effects.stream().anyMatch(effect -> isRelevant(effect, target))) {
+		if (hasRelevantEffect(this.getPotionContents(), target)) {
 			target.timeUntilRegen = 0;
 		}
 	}
 
-	private static boolean hasInstantEffect(Potion potion, LivingEntity target) {
-		for (StatusEffectInstance effect : potion.getEffects()) {
+	private static boolean hasRelevantEffect(PotionContentsComponent contents, LivingEntity target) {
+		for (StatusEffectInstance effect : contents.getEffects()) {
 			if (isRelevant(effect, target)) {
 				return true;
 			}
@@ -58,6 +54,7 @@ public abstract class ArrowEntityMixin {
 		if (effect.getEffectType() == StatusEffects.INSTANT_DAMAGE) {
 			return true;
 		}
-		return effect.getEffectType() == StatusEffects.INSTANT_HEALTH && target.isUndead();
+		return effect.getEffectType() == StatusEffects.INSTANT_HEALTH
+				&& target.getType().isIn(EntityTypeTags.UNDEAD);
 	}
 }

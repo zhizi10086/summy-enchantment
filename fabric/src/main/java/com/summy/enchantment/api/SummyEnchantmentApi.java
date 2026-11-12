@@ -5,13 +5,17 @@ import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.compat.SummyReliquaryCompat;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
-import net.minecraft.enchantment.Enchantment;
+import com.summy.enchantment.registry.EnchantmentRef;
+import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.projectile.PersistentProjectileEntity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
+import net.minecraft.registry.RegistryKey;
+import net.minecraft.registry.RegistryKeys;
+import net.minecraft.registry.entry.RegistryEntry;
+import net.minecraft.registry.tag.EnchantmentTags;
 import net.minecraft.util.Identifier;
 
 import java.util.ArrayList;
@@ -33,6 +37,7 @@ public final class SummyEnchantmentApi {
 	/** 配置键只读索引：避免脚本高频查询时反复遍历 99 项枚举。 */
 	private static final Map<String, SummyEnchantmentConfig.Option> CONFIG_OPTIONS = buildConfigOptions();
 	private static final List<String> CONFIG_KEYS = buildConfigKeys();
+	private static final Map<Identifier, EnchantmentRef> ENCHANTMENT_REFS = buildEnchantmentRefs();
 
 	private SummyEnchantmentApi() {
 	}
@@ -52,8 +57,7 @@ public final class SummyEnchantmentApi {
 		if (stack == null || stack.isEmpty() || id == null) {
 			return 0;
 		}
-		Enchantment enchantment = Registries.ENCHANTMENT.get(id);
-		return enchantment == null ? 0 : EnchantmentHelper.getLevel(enchantment, stack);
+		return EnchantmentRef.level(stack, RegistryKey.of(RegistryKeys.ENCHANTMENT, id));
 	}
 
 	public static boolean has(ItemStack stack, String id) {
@@ -117,39 +121,38 @@ public final class SummyEnchantmentApi {
 	/** 当前已注册的全部 SE 附魔完整 ID，按字母排序。 */
 	public static List<String> enchantmentIds() {
 		List<String> ids = new ArrayList<>();
-		for (Identifier id : Registries.ENCHANTMENT.getIds()) {
-			if (SummyEnchantment.MOD_ID.equals(id.getNamespace())) {
-				ids.add(id.toString());
-			}
+		for (EnchantmentRef ref : ModEnchantments.all()) {
+			ids.add(ref.id().toString());
 		}
 		ids.sort(Comparator.naturalOrder());
 		return List.copyOf(ids);
 	}
 
 	public static int enchantmentMaxLevel(String id) {
-		Enchantment enchantment = enchantment(id);
-		return enchantment == null ? 0 : enchantment.getMaxLevel();
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
+		return enchantment == null ? 0 : enchantment.value().getMaxLevel();
 	}
 
 	public static String enchantmentRarity(String id) {
-		Enchantment enchantment = enchantment(id);
-		return enchantment == null ? "" : enchantment.getRarity().name().toLowerCase(Locale.ROOT);
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
+		return enchantment == null ? "" : rarityForWeight(enchantment.value().getWeight());
 	}
 
 	public static boolean isTreasure(String id) {
-		Enchantment enchantment = enchantment(id);
-		return enchantment != null && enchantment.isTreasure();
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
+		return enchantment != null && enchantment.isIn(EnchantmentTags.TREASURE);
 	}
 
 	public static boolean isCursed(String id) {
-		Enchantment enchantment = enchantment(id);
-		return enchantment != null && enchantment.isCursed();
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
+		return enchantment != null && enchantment.isIn(EnchantmentTags.CURSE);
 	}
 
 	/** 按附魔自身的 isAcceptableItem 判断物品能否附魔；空物品或未知 ID 返回 false。 */
 	public static boolean enchantmentCanApplyTo(ItemStack stack, String id) {
-		Enchantment enchantment = enchantment(id);
-		return stack != null && !stack.isEmpty() && enchantment != null && enchantment.isAcceptableItem(stack);
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
+		return stack != null && !stack.isEmpty() && enchantment != null
+				&& enchantment.value().isAcceptableItem(stack);
 	}
 
 	/**
@@ -157,14 +160,15 @@ public final class SummyEnchantmentApi {
 	 * 不检查等级、经验成本或宝藏获取途径。
 	 */
 	public static boolean enchantmentCanEnchant(ItemStack stack, String id) {
-		Enchantment enchantment = enchantment(id);
+		RegistryEntry<net.minecraft.enchantment.Enchantment> enchantment = enchantmentEntry(id);
 		if (stack == null || stack.isEmpty() || enchantment == null
-				|| !enchantment.isAcceptableItem(stack)) {
+				|| !enchantment.value().isAcceptableItem(stack)) {
 			return false;
 		}
-		for (Enchantment existing : EnchantmentHelper.get(stack).keySet()) {
-			if (existing != enchantment
-					&& (!enchantment.canCombine(existing) || !existing.canCombine(enchantment))) {
+		for (var existing : EnchantmentHelper.getEnchantments(stack).getEnchantmentEntries()) {
+			if (!existing.getKey().matches(enchantment)
+					&& !net.minecraft.enchantment.Enchantment.canBeCombined(
+							enchantment, existing.getKey())) {
 				return false;
 			}
 		}
@@ -313,9 +317,23 @@ public final class SummyEnchantmentApi {
 		return option == null ? "" : option.category().name().toLowerCase(Locale.ROOT);
 	}
 
-	private static Enchantment enchantment(String id) {
+	private static RegistryEntry<net.minecraft.enchantment.Enchantment> enchantmentEntry(String id) {
 		Identifier parsed = parseId(id);
-		return parsed == null ? null : Registries.ENCHANTMENT.get(parsed);
+		EnchantmentRef ref = parsed == null ? null : ENCHANTMENT_REFS.get(parsed);
+		return ref == null ? null : ref.entry();
+	}
+
+	private static String rarityForWeight(int weight) {
+		if (weight >= 10) {
+			return "common";
+		}
+		if (weight >= 5) {
+			return "uncommon";
+		}
+		if (weight >= 2) {
+			return "rare";
+		}
+		return "very_rare";
 	}
 
 	private static SummyEnchantmentConfig.Option configOption(String key) {
@@ -331,6 +349,14 @@ public final class SummyEnchantmentApi {
 			options.put(option.key(), option);
 		}
 		return Map.copyOf(options);
+	}
+
+	private static Map<Identifier, EnchantmentRef> buildEnchantmentRefs() {
+		Map<Identifier, EnchantmentRef> refs = new HashMap<>();
+		for (EnchantmentRef ref : ModEnchantments.all()) {
+			refs.put(ref.id(), ref);
+		}
+		return Map.copyOf(refs);
 	}
 
 	/** 把短名规范成 SE 命名空间；完整 id 原样保留 */

@@ -3,91 +3,64 @@ package com.summy.enchantment.network;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.config.DodgeSoundStyle;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.network.PacketByteBuf;
+import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.network.RegistryByteBuf;
+import net.minecraft.network.codec.PacketCodec;
+import net.minecraft.network.packet.CustomPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.Identifier;
-import net.minecraft.entity.projectile.PersistentProjectileEntity;
 
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 服务端 → 客户端 的配置同步。
- *
- * <p>伤害、附魔上限这些都在服务端结算，客户端的药水提示与配置界面却读的是本端配置，
- * 两边不一致时会出现"提示写 +130%、实际却是 +200%"的情况。
- * 所以玩家一进服就把服务端配置发过去，客户端只在内存里应用（不改本地文件），
- * 断开连接后再恢复自己的配置。
+ * 服务端与客户端之间同步配置、粒子偏好和箭矢轻盈状态。
  */
 public final class ConfigSync {
-	public static final Identifier CHANNEL = new Identifier(SummyEnchantment.MOD_ID, "config_sync");
-	/** 客户端 → 服务端：上报自己的箭矢粒子档位（每名玩家各自一份，不参与上面的整份配置同步） */
-	public static final Identifier PARTICLE_CHANNEL = new Identifier(SummyEnchantment.MOD_ID, "particle_style");
-	/** 服务端 → 客户端：请上报粒子偏好；载荷是协议版本（客户端据此判断服务端是否支持远距离代发） */
-	public static final Identifier PARTICLE_REQUEST_CHANNEL =
-			new Identifier(SummyEnchantment.MOD_ID, "particle_style_request");
-	/** 1.3.7：服务端 → 客户端：某支箭的"轻盈等级"（实体 id + 等级；两端都要算重力，必须同步） */
-	public static final Identifier ARROW_LIGHTNESS_CHANNEL =
-			new Identifier(SummyEnchantment.MOD_ID, "arrow_lightness");
-
-	/**
-	 * 粒子上报协议版本：1 = 只有档位；2 = +远距离开关与半径；3 = +近战档位；4 = +横扫档位；
-	 * 5 = +近战强度；7 = +出其不意档位与死亡粒子档位；8 = +闪避音效档位。
-	 */
 	public static final int PARTICLE_PROTOCOL_VERSION = 9;
-	/** 支持"远距离代发"的最低协议版本 */
 	public static final int LONG_DISTANCE_PROTOCOL_VERSION = 2;
-	/** 注册表里没有记录时，每多少 tick 重新索要一次 */
 	private static final int REQUEST_INTERVAL_TICKS = 100;
-	/** 最多索要几次后放弃（客户端可能是旧版本，没有应答逻辑） */
 	private static final int MAX_REQUEST_ATTEMPTS = 6;
-
-	/** 服务端索要状态：玩家 UUID → { 上次索要的 tick, 已索要次数 } */
 	private static final Map<UUID, int[]> REQUEST_STATE = new ConcurrentHashMap<>();
+	private static boolean payloadsRegistered;
 
 	private ConfigSync() {
 	}
 
-	/**
-	 * 服务端侧：接收客户端上报的箭矢粒子档位，并注册"玩家下线时忘记档位"。
-	 *
-	 * <p>客户端没装本模组时不会发这个包，服务端也就没有该玩家的记录，
-	 * 此时他射出的箭不带射手档位，观者按自己的设置渲染。
-	 */
+	public static void registerPayloads() {
+		if (payloadsRegistered) {
+			return;
+		}
+		payloadsRegistered = true;
+		PayloadTypeRegistry.playC2S().register(ParticleStylePayload.ID, ParticleStylePayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ConfigPayload.ID, ConfigPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ParticleRequestPayload.ID, ParticleRequestPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ArrowLightnessPayload.ID, ArrowLightnessPayload.CODEC);
+	}
+
 	public static void registerServerReceivers() {
-		ServerPlayNetworking.registerGlobalReceiver(PARTICLE_CHANNEL, (server, player, handler, buffer, responseSender) -> {
-			int style = buffer.readVarInt();
-			// 容错读取：旧版本客户端只发档位，缺的字段用默认值
-			boolean longDistance = buffer.isReadable() && buffer.readBoolean();
-			int distance = buffer.isReadable() ? buffer.readVarInt() : ParticlePreferences.MAX_DISTANCE;
-			int meleeStyle = buffer.isReadable() ? buffer.readVarInt() : 0;
-			int sweepStyle = buffer.isReadable() ? buffer.readVarInt() : 0;
-			int meleeEffect = buffer.isReadable() ? buffer.readVarInt() : 1;
-			int surpriseStyle = buffer.isReadable() ? buffer.readVarInt() : 2;
-			int deathStyle = buffer.isReadable() ? buffer.readVarInt() : 12;
-			int dodgeSound = buffer.isReadable() ? buffer.readVarInt() : DodgeSoundStyle.DEFAULT;
-			ParticlePreferences.Preference preference =
-					ParticlePreferences.set(player.getUuid(), style, longDistance, distance, meleeStyle, sweepStyle,
-							meleeEffect, surpriseStyle, deathStyle, dodgeSound);
+		registerPayloads();
+		ServerPlayNetworking.registerGlobalReceiver(ParticleStylePayload.ID, (payload, context) -> {
+			ServerPlayerEntity player = context.player();
+			ParticlePreferences.Preference preference = ParticlePreferences.set(
+					player.getUuid(), payload.style(), payload.longDistance(), payload.distance(),
+					payload.meleeStyle(), payload.sweepStyle(), payload.meleeEffect(),
+					payload.surpriseStyle(), payload.deathStyle(), payload.dodgeSound());
 			REQUEST_STATE.remove(player.getUuid());
-			if (preference != null) {
-				// 核验用回显：只在"调试日志"开关打开时输出
-				if (!SummyEnchantmentConfig.get().debugLogs) {
-					return;
-				}
+			if (preference != null && SummyEnchantmentConfig.get().debugLogs) {
 				SummyEnchantment.LOGGER.info(
 						"[Summy Enchantment] 玩家 {} 的粒子档位 = 箭矢 {} / 近战 {} / 横扫 {} / 强度 {}"
 								+ " / 出其不意 {} / 死亡 {} / 闪避音效 {}（远距离={}，半径={}）",
 						player.getGameProfile().getName(), preference.style(), preference.meleeStyle(),
-						preference.sweepStyle(), preference.meleeEffect(),
-						preference.surpriseStyle(), preference.deathStyle(), preference.dodgeSound(),
+						preference.sweepStyle(), preference.meleeEffect(), preference.surpriseStyle(),
+						preference.deathStyle(), preference.dodgeSound(),
 						preference.longDistance() ? "开" : "关", preference.distance());
 			}
 		});
@@ -99,27 +72,14 @@ public final class ConfigSync {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> ParticlePreferences.clearAll());
 	}
 
-	/**
-	 * 服务端：请某位玩家上报粒子偏好（客户端没装本模组时不会发送）。
-	 *
-	 * @return 是否真的发出去了
-	 */
 	public static boolean requestParticlePreference(ServerPlayerEntity player) {
-		if (!ServerPlayNetworking.canSend(player, PARTICLE_REQUEST_CHANNEL)) {
+		if (!ServerPlayNetworking.canSend(player, ParticleRequestPayload.ID)) {
 			return false;
 		}
-		PacketByteBuf buffer = PacketByteBufs.create();
-		buffer.writeVarInt(PARTICLE_PROTOCOL_VERSION);
-		ServerPlayNetworking.send(player, PARTICLE_REQUEST_CHANNEL, buffer);
+		ServerPlayNetworking.send(player, new ParticleRequestPayload(PARTICLE_PROTOCOL_VERSION));
 		return true;
 	}
 
-	/**
-	 * 服务端每 tick 调用：还没登记偏好的玩家每 5 秒重新索要一次，最多 6 次。
-	 *
-	 * <p>兜住"客户端主动上报时握手还没就绪"这类时序问题；对端是旧版本（没有应答逻辑）时
-	 * 会在若干次之后安静放弃。
-	 */
 	public static void tickParticlePreferenceRequests(ServerPlayerEntity player, int serverTicks) {
 		UUID playerId = player.getUuid();
 		if (ParticlePreferences.isKnown(playerId)) {
@@ -138,50 +98,111 @@ public final class ConfigSync {
 			++state[1];
 			if (state[1] == MAX_REQUEST_ATTEMPTS) {
 				SummyEnchantment.LOGGER.info(
-						"[Summy Enchantment] 未收到玩家 {} 的箭矢粒子偏好（对端可能是旧版本），"
-								+ "其射出的箭将按观者自己的设置渲染",
+						"[Summy Enchantment] 未收到玩家 {} 的箭矢粒子偏好，其射出的箭将按观察者设置渲染",
 						player.getGameProfile().getName());
 			}
 		}
 	}
 
-	/** 把服务端当前配置发给某个玩家 */
 	public static void sendTo(ServerPlayerEntity player) {
-		PacketByteBuf buffer = PacketByteBufs.create();
-		buffer.writeString(SummyEnchantmentConfig.get().toJsonString());
-		ServerPlayNetworking.send(player, CHANNEL, buffer);
+		ServerPlayNetworking.send(player, new ConfigPayload(SummyEnchantmentConfig.get().toJsonString()));
 	}
 
-	/**
-	 * 1.3.7 轻盈：把"某支箭的等级"发给附近能看到它的玩家（同维度、64 格内 = 实体同步范围）。
-	 *
-	 * <p>客户端没装本模组时 {@code canSend} 为 false，直接跳过（纯原版客户端不受影响）。
-	 */
 	public static void sendArrowLightness(PersistentProjectileEntity arrow, int level) {
 		if (arrow == null || level <= 0 || !(arrow.getWorld() instanceof ServerWorld world)) {
 			return;
 		}
 		for (ServerPlayerEntity player : world.getPlayers()) {
-			if (player.squaredDistanceTo(arrow) > 64.0D * 64.0D) {
+			if (player.squaredDistanceTo(arrow) > 64.0D * 64.0D
+					|| !ServerPlayNetworking.canSend(player, ArrowLightnessPayload.ID)) {
 				continue;
 			}
-			if (!ServerPlayNetworking.canSend(player, ARROW_LIGHTNESS_CHANNEL)) {
-				continue;
-			}
-			PacketByteBuf buffer = PacketByteBufs.create();
-			buffer.writeVarInt(arrow.getId());
-			buffer.writeVarInt(level);
-			ServerPlayNetworking.send(player, ARROW_LIGHTNESS_CHANNEL, buffer);
+			ServerPlayNetworking.send(player, new ArrowLightnessPayload(arrow.getId(), level));
 		}
 	}
 
-	/** 广播给所有在线玩家（命令或界面改完配置后调用） */
 	public static void broadcast(MinecraftServer server) {
 		if (server == null) {
 			return;
 		}
 		for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
 			sendTo(player);
+		}
+	}
+
+	public record ConfigPayload(String json) implements CustomPayload {
+		public static final Id<ConfigPayload> ID =
+				new Id<>(Identifier.of(SummyEnchantment.MOD_ID, "config_sync"));
+		public static final PacketCodec<RegistryByteBuf, ConfigPayload> CODEC = PacketCodec.of(
+				(value, buffer) -> buffer.writeString(value.json(), 2_097_152),
+				buffer -> new ConfigPayload(buffer.readString(2_097_152)));
+
+		@Override
+		public Id<? extends CustomPayload> getId() {
+			return ID;
+		}
+	}
+
+	public record ParticleStylePayload(int style, boolean longDistance, int distance, int meleeStyle,
+			int sweepStyle, int meleeEffect, int surpriseStyle, int deathStyle, int dodgeSound)
+			implements CustomPayload {
+		public static final Id<ParticleStylePayload> ID =
+				new Id<>(Identifier.of(SummyEnchantment.MOD_ID, "particle_style"));
+		public static final PacketCodec<RegistryByteBuf, ParticleStylePayload> CODEC = PacketCodec.of(
+				(value, buffer) -> {
+					buffer.writeVarInt(value.style());
+					buffer.writeBoolean(value.longDistance());
+					buffer.writeVarInt(value.distance());
+					buffer.writeVarInt(value.meleeStyle());
+					buffer.writeVarInt(value.sweepStyle());
+					buffer.writeVarInt(value.meleeEffect());
+					buffer.writeVarInt(value.surpriseStyle());
+					buffer.writeVarInt(value.deathStyle());
+					buffer.writeVarInt(value.dodgeSound());
+				},
+				buffer -> new ParticleStylePayload(
+						buffer.readVarInt(),
+						buffer.readBoolean(),
+						buffer.readVarInt(),
+						buffer.readVarInt(),
+						buffer.readVarInt(),
+						buffer.readVarInt(),
+						buffer.readVarInt(),
+						buffer.readVarInt(),
+						buffer.readVarInt()));
+
+		@Override
+		public Id<? extends CustomPayload> getId() {
+			return ID;
+		}
+	}
+
+	public record ParticleRequestPayload(int protocolVersion) implements CustomPayload {
+		public static final Id<ParticleRequestPayload> ID =
+				new Id<>(Identifier.of(SummyEnchantment.MOD_ID, "particle_style_request"));
+		public static final PacketCodec<RegistryByteBuf, ParticleRequestPayload> CODEC = PacketCodec.of(
+				(value, buffer) -> buffer.writeVarInt(value.protocolVersion()),
+				buffer -> new ParticleRequestPayload(buffer.readVarInt()));
+
+		@Override
+		public Id<? extends CustomPayload> getId() {
+			return ID;
+		}
+	}
+
+	public record ArrowLightnessPayload(int entityId, int level) implements CustomPayload {
+		public static final Id<ArrowLightnessPayload> ID =
+				new Id<>(Identifier.of(SummyEnchantment.MOD_ID, "arrow_lightness"));
+		public static final PacketCodec<RegistryByteBuf, ArrowLightnessPayload> CODEC = PacketCodec.of(
+				(value, buffer) -> {
+					buffer.writeVarInt(value.entityId());
+					buffer.writeVarInt(value.level());
+				},
+				buffer -> new ArrowLightnessPayload(buffer.readVarInt(), buffer.readVarInt()));
+
+		@Override
+		public Id<? extends CustomPayload> getId() {
+			return ID;
 		}
 	}
 }

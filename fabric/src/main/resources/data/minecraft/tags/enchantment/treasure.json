@@ -1,0 +1,16 @@
+{
+    "replace":  false,
+    "values":  [
+                   "summy_enchantment:instinctive_release",
+                   "summy_enchantment:surprise",
+                   "summy_enchantment:phantom_arrow",
+                   "summy_enchantment:endless_quiver",
+                   "summy_enchantment:execution",
+                   "summy_enchantment:soul_grace",
+                   "summy_enchantment:nimble_steps",
+                   "summy_enchantment:sky_wish",
+                   "summy_enchantment:death_eye",
+                   "summy_enchantment:phase_step",
+                   "summy_enchantment:hidden_blade"
+               ]
+}

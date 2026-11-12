@@ -10,13 +10,13 @@ import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * 附魔书的说明文本。
@@ -53,8 +53,8 @@ public final class EnchantmentDescriptions {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		List<Component> lines = new ArrayList<>();
 
-		for (Map.Entry<Enchantment, Integer> entry : EnchantmentHelper.getEnchantments(stack).entrySet()) {
-			Component line = describeOne(entry.getKey(), Math.max(1, entry.getValue()), stack, config, withPrefix);
+		for (var entry : EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+			Component line = describeOne(entry.getKey(), Math.max(1, entry.getIntValue()), stack, config, withPrefix);
 			if (line != null) {
 				lines.add(line);
 			}
@@ -62,54 +62,54 @@ public final class EnchantmentDescriptions {
 		return lines;
 	}
 
-	private static Component describeOne(Enchantment enchantment, int level, ItemStack stack,
+	private static Component describeOne(Holder<Enchantment> enchantment, int level, ItemStack stack,
 			SummyEnchantmentConfig config, boolean withPrefix) {
-		if (enchantment == ModEnchantments.SHARPNESS_PLUS) {
+		if (ModEnchantments.SHARPNESS_PLUS.matches(enchantment)) {
 			float per = config.sharpnessDamagePerLevel;
 			return key(enchantment, level, withPrefix, "sharpness_plus", number(per * level));
 		}
-		if (enchantment == ModEnchantments.SPELLBLADE) {
+		if (ModEnchantments.SPELLBLADE.matches(enchantment)) {
 			float per = config.spellbladeMagicPercentPerLevel;
 			return key(enchantment, level, withPrefix, "spellblade", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.BEHEADING) {
+		if (ModEnchantments.BEHEADING.matches(enchantment)) {
 			float per = config.beheadingHeadChancePerLevel;
 			return key(enchantment, level, withPrefix, "beheading", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.AUTO_SMELT) {
+		if (ModEnchantments.AUTO_SMELT.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "auto_smelt");
 		}
-		if (enchantment == ModEnchantments.ARROW_VELOCITY) {
+		if (ModEnchantments.ARROW_VELOCITY.matches(enchantment)) {
 			float per = config.arrowVelocityBonusPerLevel;
 			return key(enchantment, level, withPrefix, "arrow_velocity", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.QUICK_DRAW) {
+		if (ModEnchantments.QUICK_DRAW.matches(enchantment)) {
 			float per = config.quickDrawSecondsPerLevel;
 			return key(enchantment, level, withPrefix, "quick_draw", number(per * level));
 		}
-		if (enchantment == ModEnchantments.INSTINCTIVE_RELEASE) {
+		if (ModEnchantments.INSTINCTIVE_RELEASE.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "instinctive_release");
 		}
-		if (enchantment == ModEnchantments.LIFE_SHIELD) {
+		if (ModEnchantments.LIFE_SHIELD.matches(enchantment)) {
 			float per = config.lifeShieldPercentPerLevel;
 			return key(enchantment, level, withPrefix, "life_shield", percent(per * level), percent(per * level));
 		}
-		if (enchantment == ModEnchantments.HEALTH_BOOST) {
+		if (ModEnchantments.HEALTH_BOOST.matches(enchantment)) {
 			float per = config.healthBoostPerLevel;
 			return key(enchantment, level, withPrefix, "health_boost", number(per * level));
 		}
-		if (enchantment == ModEnchantments.LIFESTEAL) {
+		if (ModEnchantments.LIFESTEAL.matches(enchantment)) {
 			float per = config.lifestealPercentPerLevel;
 			return key(enchantment, level, withPrefix, "lifesteal", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.SCHOLAR) {
+		if (ModEnchantments.SCHOLAR.matches(enchantment)) {
 			float per = config.scholarBonusPerLevel;
 			return key(enchantment, level, withPrefix, "scholar", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.CALAMITY) {
+		if (ModEnchantments.CALAMITY.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "calamity");
 		}
-		if (enchantment == ModEnchantments.DEATHS_BLESSING) {
+		if (ModEnchantments.DEATHS_BLESSING.matches(enchantment)) {
 			Player player = Minecraft.getInstance().player;
 			if (player != null && isWornBy(player, stack)) {
 				// 正穿在身上：显示此刻真正生效的数值
@@ -125,16 +125,16 @@ public final class EnchantmentDescriptions {
 					percent(config.deathsBlessingDamageBonusPerPercent),
 					percent(config.deathsBlessingResistPerPercent));
 		}
-		if (enchantment == ModEnchantments.QUICK_STRIKE) {
+		if (ModEnchantments.QUICK_STRIKE.matches(enchantment)) {
 			float per = config.quickStrikeBonusPerLevel;
 			// 迅捷打击是"加法攻速"，所以显示绝对数值而不是百分比
 			return key(enchantment, level, withPrefix, "quick_strike", number(per * level));
 		}
-		if (enchantment == ModEnchantments.LIFE_MENDING) {
+		if (ModEnchantments.LIFE_MENDING.matches(enchantment)) {
 			float per = config.lifeMendingDurabilityPerLevel;
 			return key(enchantment, level, withPrefix, "life_mending", number(per * level));
 		}
-		if (enchantment == ModEnchantments.STURDY) {
+		if (ModEnchantments.STURDY.matches(enchantment)) {
 			if (!withPrefix) {
 				// 附魔书没有"最大耐久"，显示等级系数（百分比）而不是具体点数
 				float coefficient = Math.max(0.0F, config.sturdyCoefficient - config.sturdyCoefficientStep * (level - 1));
@@ -144,71 +144,71 @@ public final class EnchantmentDescriptions {
 			int cap = EnchantmentEffects.sturdyCapFor(stack.getMaxDamage(), level);
 			return key(enchantment, level, withPrefix, "sturdy", number(cap));
 		}
-		if (enchantment == ModEnchantments.SURPRISE) {
+		if (ModEnchantments.SURPRISE.matches(enchantment)) {
 			float per = config.surpriseChancePerLevel;
 			return key(enchantment, level, withPrefix, "surprise", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.PHANTOM_ARROW) {
+		if (ModEnchantments.PHANTOM_ARROW.matches(enchantment)) {
 			float per = config.phantomArrowChancePerLevel;
 			return key(enchantment, level, withPrefix, "phantom_arrow", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.ENDLESS_QUIVER) {
+		if (ModEnchantments.ENDLESS_QUIVER.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "endless_quiver");
 		}
-		if (enchantment == ModEnchantments.EXECUTION) {
+		if (ModEnchantments.EXECUTION.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "execution", percent(config.executionThreshold));
 		}
-		if (enchantment == ModEnchantments.QUICK_EAT) {
+		if (ModEnchantments.QUICK_EAT.matches(enchantment)) {
 			float per = config.quickEatReductionPerLevel;
 			return key(enchantment, level, withPrefix, "quick_eat", percent(per * level));
 		}
-		if (enchantment == ModEnchantments.BIG_STOMACH) {
+		if (ModEnchantments.BIG_STOMACH.matches(enchantment)) {
 			float per = config.bigStomachBonusPerLevel;
 			return key(enchantment, level, withPrefix, "big_stomach", number(per * level));
 		}
-		if (enchantment == ModEnchantments.DEAD_MANS_HEART) {
+		if (ModEnchantments.DEAD_MANS_HEART.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "dead_mans_heart",
 					percent(config.deadMansHeartHealthBonus),
 					percent(config.deadMansHeartHealingPenalty));
 		}
-		if (enchantment == ModEnchantments.REVENGE) {
+		if (ModEnchantments.REVENGE.matches(enchantment)) {
 			// 与效果共用同一处计算，避免"写出来的"和"算出来的"再次对不上
 			return key(enchantment, level, withPrefix, "revenge", percent(EnchantmentEffects.revengeBonus(level)));
 		}
-		if (enchantment == ModEnchantments.SOUL_GRACE) {
+		if (ModEnchantments.SOUL_GRACE.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "soul_grace", config.soulGraceCooldownSeconds);
 		}
-		if (enchantment == ModEnchantments.NIMBLE_STEPS) {
+		if (ModEnchantments.NIMBLE_STEPS.matches(enchantment)) {
 			float per = config.nimbleStepsChancePerLevel;
 			return key(enchantment, level, withPrefix, "nimble_steps", percent(per * level));
 		}
 		// 1.3.7 三个箭矢附魔
-		if (enchantment == ModEnchantments.LIGHTNESS) {
+		if (ModEnchantments.LIGHTNESS.matches(enchantment)) {
 			double reduction = Math.min(0.9D, config.lightnessGravityReductionPerLevel * level);
 			return key(enchantment, level, withPrefix, "lightness", percent((float) reduction));
 		}
-		if (enchantment == ModEnchantments.SKY_WISH) {
+		if (ModEnchantments.SKY_WISH.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "sky_wish",
 					percent(config.skyWishBonusPerTick), percent(config.skyWishMaxBonus));
 		}
-		if (enchantment == ModEnchantments.DEATH_EYE) {
+		if (ModEnchantments.DEATH_EYE.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "death_eye",
 					percent(config.deathEyeDamagePerStack), config.deathEyeMaxStacks);
 		}
 		// 1.3.8 三个"赋能"附魔
-		if (enchantment == ModEnchantments.PHASE_STEP) {
+		if (ModEnchantments.PHASE_STEP.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "phase_step");
 		}
-		if (enchantment == ModEnchantments.HIDDEN_BLADE) {
+		if (ModEnchantments.HIDDEN_BLADE.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "hidden_blade",
 					percent(config.hiddenBladeBonusPerTick), percent(config.hiddenBladeMaxBonus));
 		}
-		if (enchantment == ModEnchantments.ELECTRIC_BLADE) {
+		if (ModEnchantments.ELECTRIC_BLADE.matches(enchantment)) {
 			return key(enchantment, level, withPrefix, "electric_blade",
 					level, percent(config.electricBladeDamageRatio));
 		}
 		// 原版忠诚被本模组改成了"本体不离开物品栏"：附魔书上补一行说明（装备上那行单独常显）
-		if (!withPrefix && enchantment == Enchantments.LOYALTY && config.enableLoyaltyRework) {
+		if (!withPrefix && enchantment.is(Enchantments.LOYALTY) && config.enableLoyaltyRework) {
 			return plain("loyalty_rework");
 		}
 		return null;
@@ -219,12 +219,13 @@ public final class EnchantmentDescriptions {
 	 *
 	 * @param withPrefix 只有装备上的描述才加前缀；附魔书不加
 	 */
-	private static Component key(Enchantment enchantment, int level, boolean withPrefix, String id, Object... args) {
+	private static Component key(Holder<Enchantment> enchantment, int level, boolean withPrefix,
+			String id, Object... args) {
 		MutableComponent text = Component.empty();
 		if (withPrefix) {
-			text.append(Component.literal("[")).append(Component.translatable(enchantment.getDescriptionId()));
+			text.append(Component.literal("[")).append(enchantment.value().description());
 			// 上限只有 1 级的附魔不标等级
-			if (enchantment.getMaxLevel() > 1) {
+			if (enchantment.value().getMaxLevel() > 1) {
 				text.append(Component.translatable("enchantment.level." + level));
 			}
 			text.append(Component.literal("]"));
@@ -241,7 +242,7 @@ public final class EnchantmentDescriptions {
 	private static boolean isWornBy(Player player, ItemStack stack) {
 		for (EquipmentSlot slot : WORN_SLOTS) {
 			ItemStack worn = player.getItemBySlot(slot);
-			if (!worn.isEmpty() && ItemStack.isSameItemSameTags(worn, stack)) {
+			if (!worn.isEmpty() && ItemStack.matches(worn, stack)) {
 				return true;
 			}
 		}

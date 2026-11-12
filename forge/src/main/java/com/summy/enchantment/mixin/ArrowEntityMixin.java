@@ -1,20 +1,17 @@
 package com.summy.enchantment.mixin;
 
 import com.summy.enchantment.config.SummyEnchantmentConfig;
+import net.minecraft.tags.EntityTypeTags;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.MobType;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.projectile.Arrow;
-import net.minecraft.world.item.alchemy.Potion;
-import org.spongepowered.asm.mixin.Final;
+import net.minecraft.world.item.alchemy.PotionContents;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
-
-import java.util.Set;
 
 /**
  * 药水箭的瞬间伤害段不再被箭矢的无敌帧吞掉。
@@ -29,11 +26,9 @@ import java.util.Set;
 @Mixin(Arrow.class)
 public abstract class ArrowEntityMixin {
 	@Shadow
-	private Potion potion;
-
-	@Shadow
-	@Final
-	private Set<MobEffectInstance> effects;
+	private PotionContents getPotionContents() {
+		throw new AssertionError();
+	}
 
 	// 官方映射里 Yarn 的 ArrowEntity#onHit = Arrow#doPostHurtEffects
 	@Inject(method = "doPostHurtEffects", at = @At("HEAD"))
@@ -41,13 +36,13 @@ public abstract class ArrowEntityMixin {
 		if (!SummyEnchantmentConfig.get().enablePotionArrowFullDamage) {
 			return;
 		}
-		if (hasInstantEffect(this.potion, target) || this.effects.stream().anyMatch(effect -> isRelevant(effect, target))) {
+		if (hasRelevantEffect(this.getPotionContents(), target)) {
 			target.invulnerableTime = 0;
 		}
 	}
 
-	private static boolean hasInstantEffect(Potion potion, LivingEntity target) {
-		for (MobEffectInstance effect : potion.getEffects()) {
+	private static boolean hasRelevantEffect(PotionContents contents, LivingEntity target) {
+		for (MobEffectInstance effect : contents.getAllEffects()) {
 			if (isRelevant(effect, target)) {
 				return true;
 			}
@@ -60,6 +55,6 @@ public abstract class ArrowEntityMixin {
 		if (effect.getEffect() == MobEffects.HARM) {
 			return true;
 		}
-		return effect.getEffect() == MobEffects.HEAL && target.getMobType() == MobType.UNDEAD;
+		return effect.getEffect() == MobEffects.HEAL && target.getType().is(EntityTypeTags.UNDEAD);
 	}
 }
