@@ -43,6 +43,8 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -567,6 +569,8 @@ public final class EnchantmentForgeDevCheck {
 				"healed=" + healed);
 		target.discard();
 
+		checkSummyReliquaryIntegration(player);
+
 		Zombie executable = spawnTarget(player, 100.0F, 10.0F);
 		ItemStack execution = enchanted(Items.IRON_SWORD, ModEnchantments.EXECUTION, 1);
 		boolean executed = EnchantmentEffects.tryExecuteReport(player, executable, execution);
@@ -578,6 +582,127 @@ public final class EnchantmentForgeDevCheck {
 		startElectricBlade(player);
 		player.setHealth(player.getMaxHealth());
 		player.setAbsorptionAmount(0.0F);
+	}
+
+	/**
+	 * 验证 SR 的三个真实伤害入口都能被 SE 的可选 Mixin 接住。
+	 *
+	 * <p>测试类不直接引用 SR 类型，避免把 SR 变成 SE 的编译依赖；SR 不存在时整组测试跳过。
+	 */
+	private static void checkSummyReliquaryIntegration(ServerPlayer player) {
+		if (!isLoaded("summy_reliquary")) {
+			log("SR 未安装，跳过 SR 真实入口测试");
+			return;
+		}
+		boolean debugBefore = com.summy.enchantment.config.SummyEnchantmentConfig.get().debugLogs;
+		com.summy.enchantment.config.SummyEnchantmentConfig.get().debugLogs = true;
+		try {
+			player.getInventory().clearContent();
+			player.removeAllEffects();
+			player.setHealth(10.0F);
+			player.setAbsorptionAmount(0.0F);
+			ItemStack weapon = enchanted(Items.IRON_SWORD, ModEnchantments.SPELLBLADE, 5);
+			weapon.enchant(ModEnchantments.LIFESTEAL.entry(), 3);
+			player.setItemSlot(EquipmentSlot.MAINHAND, weapon);
+
+			checkSrShadowDashStrike(player, weapon);
+			checkSrShadowDashHeavySlash(player, weapon);
+			checkSrThrownSpear(player, weapon);
+		} catch (ReflectiveOperationException exception) {
+			check("SR 真实入口测试夹具", false, exception.toString());
+		} finally {
+			com.summy.enchantment.config.SummyEnchantmentConfig.get().debugLogs = debugBefore;
+			player.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+			player.setHealth(player.getMaxHealth());
+			player.setAbsorptionAmount(0.0F);
+		}
+	}
+
+	private static void checkSrShadowDashStrike(ServerPlayer player, ItemStack weapon)
+			throws ReflectiveOperationException {
+		Class<?> shadowDash = Class.forName("com.summy.reliquary.effect.ShadowDash");
+		Method strike = shadowDash.getDeclaredMethod("strike", ServerPlayer.class, LivingEntity.class, float.class);
+		strike.setAccessible(true);
+		player.setHealth(10.0F);
+		player.setAbsorptionAmount(0.0F);
+		clearSrTestTargets(player);
+		Zombie target = spawnTarget(player, 100.0F, 100.0F);
+		target.invulnerableTime = 0;
+		float healthBefore = player.getHealth();
+		strike.invoke(null, player, target, 10.0F);
+		float lost = 100.0F - target.getHealth();
+		float healed = player.getHealth() - healthBefore;
+		check("SR ShadowDash#strike 经 SE Mixin 结算",
+				Math.abs(lost - 14.0F) < 0.05F && Math.abs(healed - 2.4F) < 0.05F,
+				"lost=" + lost + " healed=" + healed);
+		target.discard();
+	}
+
+	private static void checkSrShadowDashHeavySlash(ServerPlayer player, ItemStack weapon)
+			throws ReflectiveOperationException {
+		Class<?> shadowDash = Class.forName("com.summy.reliquary.effect.ShadowDash");
+		Class<?> stateClass = Class.forName("com.summy.reliquary.effect.ShadowDash$State");
+		Constructor<?> stateConstructor = stateClass.getDeclaredConstructor(
+				boolean.class, ItemStack.class, int.class, Vec3.class,
+				ResourceKey.class);
+		stateConstructor.setAccessible(true);
+		Object state = stateConstructor.newInstance(
+				false, weapon, 0, player.position(), player.serverLevel().dimension());
+		Field heavyDamage = stateClass.getDeclaredField("heavyDamage");
+		heavyDamage.setAccessible(true);
+		heavyDamage.setFloat(state, 10.0F);
+		Method heavySlash = shadowDash.getDeclaredMethod("heavySlash", ServerPlayer.class, stateClass);
+		heavySlash.setAccessible(true);
+		player.setHealth(10.0F);
+		player.setAbsorptionAmount(0.0F);
+		clearSrTestTargets(player);
+		Zombie target = spawnTarget(player, 100.0F, 100.0F);
+		target.invulnerableTime = 0;
+		float healthBefore = player.getHealth();
+		heavySlash.invoke(null, player, state);
+		float lost = 100.0F - target.getHealth();
+		float healed = player.getHealth() - healthBefore;
+		check("SR ShadowDash#heavySlash 经 SE Mixin 结算",
+				Math.abs(lost - 14.0F) < 0.05F && Math.abs(healed - 2.4F) < 0.05F,
+				"lost=" + lost + " healed=" + healed);
+		target.discard();
+	}
+
+	private static void checkSrThrownSpear(ServerPlayer player, ItemStack weapon)
+			throws ReflectiveOperationException {
+		Class<?> spearClass = Class.forName("com.summy.reliquary.entity.ThrownSpear");
+		Constructor<?> constructor = spearClass.getConstructor(
+				net.minecraft.world.level.Level.class, LivingEntity.class, ItemStack.class, float.class);
+		Method onHitEntity = spearClass.getDeclaredMethod(
+				"onHitEntity", net.minecraft.world.phys.EntityHitResult.class);
+		onHitEntity.setAccessible(true);
+		player.setHealth(10.0F);
+		player.setAbsorptionAmount(0.0F);
+		clearSrTestTargets(player);
+		Zombie target = spawnTarget(player, 100.0F, 100.0F);
+		target.invulnerableTime = 0;
+		Object spear = constructor.newInstance(player.serverLevel(), player, weapon, 10.0F);
+		float healthBefore = player.getHealth();
+		onHitEntity.invoke(spear, new net.minecraft.world.phys.EntityHitResult(target));
+		float lost = 100.0F - target.getHealth();
+		float healed = player.getHealth() - healthBefore;
+		double burstDamage = ((Number) Class.forName("com.summy.reliquary.effect.Synergies")
+				.getMethod("holyBurstDamage", LivingEntity.class)
+				.invoke(null, player)).doubleValue();
+		check("SR ThrownSpear#onHitEntity 经 SE Mixin 结算",
+				Math.abs(lost - (14.0F + burstDamage)) < 0.05F
+						&& Math.abs(healed - 2.4F) < 0.05F,
+				"lost=" + lost + " burst=" + burstDamage + " healed=" + healed);
+		target.discard();
+		((net.minecraft.world.entity.Entity) spear).discard();
+	}
+
+	private static void clearSrTestTargets(ServerPlayer player) {
+		player.serverLevel().getEntitiesOfClass(
+				LivingEntity.class,
+				player.getBoundingBox().inflate(32.0D),
+				entity -> entity != player && !(entity instanceof ServerPlayer))
+				.forEach(LivingEntity::discard);
 	}
 
 	private static void startElectricBlade(ServerPlayer player) {
