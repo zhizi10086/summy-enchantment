@@ -18,7 +18,7 @@ cd ..\forge
 .\gradlew.bat build verifyMixinTargets
 ```
 
-Forge `verifyMixinTargets` 必须全绿。警告不能包含缺失的 Mixin 目标、refmap 未命中或注入失败。
+NeoForge `verifyMixinTargets` 必须全绿。警告不能包含缺失的 Mixin 目标、refmap 未命中或注入失败。
 
 ## 3. 真实客户端自检
 
@@ -43,15 +43,15 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 - 两个正式 JAR 存在且文件名正确。
 - 版本元数据与目标版本一致。
 - 不含 `com/summy/enchantment/devcheck/**`。
-- Fabric 包含 `fabric.mod.json`，Forge 包含 `META-INF/mods.toml`。
+- Fabric 包含 `fabric.mod.json`，NeoForge 包含 `META-INF/neoforge.mods.toml`。
 - 两个包都含 `LICENSE_summy-enchantment`。
-- Forge 最终 `reobfJarJar` 包含嵌套 MixinExtras 及其许可证。
+- NeoForge 正式包包含所需的嵌套构建依赖及其许可证。
 - 不包含 Celestial、Apotheosis、Majrusz 的包路径。
 - 输出 SHA-256 供 Release 和平台版本页使用。
 
 ## 5. 服务端与部署冒烟
 
-- 无 SR / 有 deobf SR + Curios 的 Forge 专用服务端各启动到 `Done`。
+- Fabric 与 NeoForge 专用服务端分别启动到 `Done`；NeoForge 组合线同时加载 SR、SRA 与 Curios 验证真实入口。
 - 部署到目标实例后确认启动横幅、兼容检查、生命护盾属性自检与日志级别正常。
 - 不得把 `run/`、测试世界、外部模组 JAR 或 devcheck 日志复制进公开仓库。
 
@@ -66,15 +66,16 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 - 标签：`v<版本>`，例如 `v1.3.10`。
 - 标题：`Summy Enchantment <版本>`。
 - 正文：使用 `docs/releases/<版本>.md`。
-- 资产：Fabric 与 Forge 两个正式 JAR。
+- 资产：Fabric 与 NeoForge 两个正式 JAR，共用 `v1.4.2+1.21.1` 标签。
 - 发布通道：`Release`，设为 Latest。
 - 发布后核对资产大小、SHA-256、下载链接与正文渲染。
 
 ## 8. 平台上传材料
 
-每个版本在本地 `MC mod/JAR/<Minecraft版本>/summy-enchantment/_release-<版本>/` 归档。
-例如 1.20.1 的 1.4.2 材料位于
-`MC mod/JAR/1.20.1/summy-enchantment/_release-1.4.2/`：
+1.21.1 的两份材料分别归档到：
+
+- `MC mod/JAR/1.21.1/summy-enchantment/_release-1.4.2+1.21.1/`
+- `MC mod/JAR/1.21.1/summy-enchantment-neoforge/_release-1.4.2+1.21.1/`
 
 - 双加载器正式 JAR
 - `Release 说明.md`
@@ -82,6 +83,6 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 - `更新日志.md`
 - `元数据填写清单.md`
 - `许可设置总表.md`
-- `发布校验.md`
+- `发布核验.md`
 - `SHA256SUMS.txt`
 - 平台图标

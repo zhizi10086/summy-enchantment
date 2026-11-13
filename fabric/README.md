@@ -1,23 +1,31 @@
 # Summy Enchantment
 
-Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html) 1.4.7 与 1.5.0+。作者：**Summy**。
+Minecraft **1.21.1** / Fabric 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容 1.21.1 的 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
 >
 > 🧩 **Celestial / Apotheosis / Majrusz 兼容规则与独立实现记录见 [docs/compatibility.md](../docs/compatibility.md)**
 >
-> 🔌 **KubeJS API、只读事件、示例与边界见 [docs/kubejs.md](../docs/kubejs.md)**
+> 🔌 **KubeJS 1.21.1 仅支持 NeoForge；Fabric 产物不包含 KubeJS 插件**
 
 ## 环境
 
 | 项目 | 版本 |
 | --- | --- |
-| Minecraft | 1.20.1 |
-| Fabric Loader | 0.18.4 |
-| Yarn | 1.20.1+build.10（不存在 build.12） |
-| Fabric API | 0.92.7+1.20.1 |
-| Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
-| Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
+| Minecraft | 1.21.1 |
+| Fabric Loader | 0.20.1 |
+| Yarn | 1.21.1+build.3 |
+| Fabric API | 0.116.18+1.21.1 |
+| Mod Menu（可选） | 11.0.5，仅编译期依赖；装了才有图形配置页 |
+| Java | 21 |
+
+## 1.4.2+1.21.1 平台版本
+
+- Fabric 正式产物为 `summy-enchantment-1.4.2+1.21.1.jar`。
+- Backported Spears 1.21.1 专项为 9 项、失败 0 项。
+- Fabric 与 NeoForge 共用标签 `v1.4.2+1.21.1`，网络协议为 9。
+
+> 以下 1.4.2 及更早条目均为 Minecraft 1.20.1 历史记录，保留用于追溯。
 
 ## 1.4.2 矛兼容：Backported Spears 1.5.0+
 
@@ -352,7 +360,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.2.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.2+1.21.1.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment/`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 >

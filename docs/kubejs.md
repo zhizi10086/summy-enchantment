@@ -1,17 +1,21 @@
 # Summy Enchantment KubeJS API
 
-> 适用版本：1.4.0（Fabric 与 Forge 功能一致）。
-> KubeJS 是可选依赖；未安装时 SE 不加载任何 KubeJS 类，玩法与没有安装 KubeJS 时一致。
+> 适用版本：1.4.2+1.21.1 NeoForge。
+> KubeJS 是 NeoForge 可选依赖；未安装时 SE 不加载任何 KubeJS 类，玩法与没有安装 KubeJS 时一致。
+> Minecraft 1.21.1 Fabric 当前没有 KubeJS 上游版本，因此 Fabric 产物不包含 KubeJS 插件。
 
 ## 支持版本与加载
 
-- 支持 Minecraft 1.20.1 的 KubeJS `2001.6.5` 系列，声明范围为 `>=2001.6.5-build.16 <2001.6.6`；本版以 `2001.6.5-build.16` 编译和验证。
+- 支持 Minecraft 1.21.1 NeoForge 的 KubeJS `2101.7.2` 系列；本版以 `2101.7.2-build.381` 编译和验证。
+- 对应 Rhino 测试版本为 `2101.2.7-build.81`。
 - SE 的 JAR 内含 `kubejs.plugins.txt`，KubeJS 已安装时会自动发现插件。
 - 服务端脚本获得完整 `SummyEnchantment` API（43 个方法）和 `SummyEnchantmentEvents` 事件组。
 - 客户端脚本获得 24 个只读查询方法；不提供写入、藏剑冷却或任何服务端事件。脚本类过滤器默认封锁整个 `com.summy.enchantment.` 包，仅服务端脚本可精确加载 `SummyEnchantmentApi`。
 - 启动脚本不绑定 `SummyEnchantment`，避免在注册表或世界状态尚未就绪时访问依赖对象。
 
-开发期可使用 `-PkubejsModsDir=<目录>` 将官方 KubeJS、Rhino 与 Architectury JAR 加入真实客户端脚本自检；该目录只用于测试，不会进入正式 JAR。可通过 `-PkubejsVersion=<版本>`、`-PrhinoVersion=<版本>`、`-ParchitecturyVersion=<版本>` 切换测试矩阵，默认分别为 `2001.6.5-build.16`、`2001.2.3-build.10`、`9.2.14`。
+开发期可使用 `-PkubejsModsDir=<目录>` 将官方 KubeJS、Rhino 与所需联动 JAR 加入真实客户端脚本自检；该目录只用于测试，不会进入正式 JAR。可通过 `-PkubejsVersion=<版本>`、`-PrhinoVersion=<版本>` 切换测试矩阵，默认分别为 `2101.7.2-build.381`、`2101.2.7-build.81`。
+
+Minecraft 1.21.1 Fabric 当前没有 KubeJS 上游版本，因此 Fabric 产物不包含插件文件或 KubeJS 类。
 
 仓库内置自检脚本位于 `tools/kubejs-selftest/`；存在 `kubejsModsDir` 时，`runClient` / `runServer` 会自动复制到 `run/kubejs`，测试后可安全清理 `run/`。
 

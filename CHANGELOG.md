@@ -3,6 +3,17 @@
 本文件从 1.3.10 起记录发布级变更。1.3.9 及更早版本的完整技术记录仍保留在
 Fabric 与 Forge 两份 README 的发布记录中。
 
+## 1.4.2+1.21.1
+
+### Minecraft 1.21.1 平台版本
+
+- Fabric 与 NeoForge 升级到 Minecraft 1.21.1、Java 21。
+- Fabric 使用 Loader 0.20.1、Fabric API 0.116.18+1.21.1；NeoForge 使用 21.1.265。
+- 保持 32 个附魔、99 项配置 / 11 组与网络协议 9。
+- 完成 Fabric/NeoForge 核心自检、Spears 双加载器、KubeJS NeoForge、SR/SRA 真实入口和服务端组合验证。
+- KubeJS 仅提供 NeoForge 1.21.1 可选兼容；Fabric 不包含 KubeJS 插件。
+- 正式产物：`summy-enchantment-1.4.2+1.21.1.jar`、`summy-enchantment-1.4.2+1.21.1-neoforge.jar`。
+
 ## 1.4.2
 
 ### 矛兼容修复

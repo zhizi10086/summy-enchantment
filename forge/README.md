@@ -1,9 +1,9 @@
 # Summy Enchantment
 
-本仓库是 **Forge 1.20.1（47.4.10）** 的移植工程，功能与原 Fabric 工程（同版本号 1.4.2）一致；
+本目录是 **NeoForge 1.21.1（21.1.265）** 工程，功能与同仓库 Fabric 工程一致；
 两份源码因 Yarn 与 Mojang 官方映射不同而独立维护。
 
-Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容矛 [Backported Spears](https://www.mcmod.cn/class/23213.html) 1.4.7 与 1.5.0+。作者：**Summy**。
+Minecraft **1.21.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改消耗经验点数，新增 32 个附魔（含锋利Plus）与 11 组配置页；并可选兼容 1.21.1 的 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
 
 > 📖 **全附魔总表（32 个附魔的公式、目标、互斥、配置键、边界与机制附录）见 [docs/enchantments.md](../docs/enchantments.md)**
 >
@@ -11,15 +11,23 @@ Minecraft **1.20.1** 的附魔与机制改造模组：重做锋利与力量、�
 >
 > 🔌 **KubeJS API、只读事件、示例与边界见 [docs/kubejs.md](../docs/kubejs.md)**
 
-## Forge 版构建与移植说明
+## NeoForge 版构建说明
 
 | 项目 | 版本／说明 |
 | --- | --- |
-| Minecraft / Forge | 1.20.1 / 47.4.10（`loaderVersion = "[47,)"`） |
-| 构建 | ForgeGradle 6 + MixinGradle 0.7.38 + MixinExtras 0.5.5（jar-in-jar）+ 官方映射 |
-| JDK | 17（`gradle.properties` / 全局 `~/.gradle/gradle.properties` 指定） |
+| Minecraft / NeoForge | 1.21.1 / 21.1.265 |
+| 构建 | Gradle 9.2.1 + ModDevGradle 2.0.148 + Parchment 2024.11.17 |
+| JDK | 21 |
 | 构建命令 | `gradlew build` |
-| 产物 | `MC mod/JAR/1.20.1/summy-enchantment-forge/summy-enchantment-1.4.2-forge.jar` |
+| 产物 | `MC mod/JAR/1.21.1/summy-enchantment-neoforge/summy-enchantment-1.4.2+1.21.1-neoforge.jar` |
+
+## 1.4.2+1.21.1 平台版本
+
+- NeoForge 正式产物为 `summy-enchantment-1.4.2+1.21.1-neoforge.jar`。
+- KubeJS `2101.7.2-build.381` 与 Rhino `2101.2.7-build.81` 为可选兼容，不会打入 SE JAR。
+- NeoForge + SR + SRA + Spears + KubeJS 的组合客户端与服务端启动通过。
+
+> 以下 1.4.2-forge 及更早条目均为 Minecraft 1.20.1 历史记录，保留用于追溯。
 
 构建相关的三个本地化处理（都在 `build.gradle` 内，注释有说明）：
 
@@ -620,7 +628,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.2-forge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment-forge/`。
+产物：`build/libs/summy-enchantment-1.4.2+1.21.1-neoforge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment-neoforge/`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 
