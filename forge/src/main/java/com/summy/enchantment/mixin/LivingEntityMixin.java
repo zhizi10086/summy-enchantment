@@ -92,7 +92,7 @@ public abstract class LivingEntityMixin {
 			argsOnly = true
 	)
 	private MobEffectInstance summyEnchantment$redirectStrengthOnAdd(MobEffectInstance instance) {
-		return CombatFormulas.redirectVanillaStrength(instance);
+		return CombatFormulas.redirectVanillaStrength((LivingEntity) (Object) this, instance);
 	}
 
 	@ModifyVariable(
@@ -101,7 +101,7 @@ public abstract class LivingEntityMixin {
 			argsOnly = true
 	)
 	private MobEffectInstance summyEnchantment$redirectStrengthOnSet(MobEffectInstance instance) {
-		return CombatFormulas.redirectVanillaStrength(instance);
+		return CombatFormulas.redirectVanillaStrength((LivingEntity) (Object) this, instance);
 	}
 
 	/** 死神祝福：受到伤害倍率（与其它受伤增减同乘区） */
@@ -136,13 +136,19 @@ public abstract class LivingEntityMixin {
 			return value;
 		}
 		LivingEntity self = (LivingEntity) (Object) this;
+		// 客户端血量以服务端同步为准。灵魂加护的短暂抑制无法跨线程共享，
+		// 若客户端继续本地锁血，会把服务端刚同步的满血立即改回 1。
+		if (self.level().isClientSide) {
+			return value;
+		}
 		// 构造期间（age == 0）装备栏还没建立，查附魔会 NPE（例如 Carpet/GCA 生成假玩家时），
 		// 这里直接跳过；实体进入世界后由 tick 里的兜底逻辑负责压血。
 		if (self.tickCount <= 0) {
 			return value;
 		}
 		try {
-			if (EnchantmentEffects.isCalamityActive(self)) {
+			if (EnchantmentEffects.isCalamityActive(self)
+					&& !EnchantmentEffects.isCalamitySuppressed(self)) {
 				return 1.0F;
 			}
 		} catch (Exception ignored) {
@@ -260,6 +266,7 @@ public abstract class LivingEntityMixin {
 		if (self.level().isClientSide) {
 			return;
 		}
+		CombatFormulas.restoreVanillaStrengthForMob(self);
 		EnchantmentEffects.updateEquipmentAttributes(self);
 		EnchantmentEffects.applyCalamity(self);
 		// 生命护盾：数值存在属性里，所以每 tick 的维护改由这里驱动（内部有快速早退）

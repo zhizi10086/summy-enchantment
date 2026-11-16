@@ -5,6 +5,8 @@ import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.Ownable;
+import net.minecraft.entity.Tameable;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
@@ -153,7 +155,7 @@ public final class ElectricArc {
 			// 攻击者离线/死亡：整条链结束（否则归属与武器等级都不再可靠）
 			return "attacker_offline";
 		}
-		LivingEntity target = findNextTarget(pending);
+		LivingEntity target = findNextTarget(pending, attacker);
 		if (target == null) {
 			return "no_target";
 		}
@@ -200,13 +202,14 @@ public final class ElectricArc {
 	}
 
 	/** 以上一段目标为圆心找半径内最近、且链上没打过的活体（排除攻击者本人） */
-	private static LivingEntity findNextTarget(Pending pending) {
+	private static LivingEntity findNextTarget(Pending pending, ServerPlayerEntity attacker) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		double radius = Math.max(0.5D, config.electricBladeRadius);
 		Box box = new Box(pending.from, pending.from).expand(radius);
 		List<LivingEntity> candidates = pending.world.getEntitiesByClass(LivingEntity.class, box,
 				entity -> entity.isAlive() && !pending.hitIds.contains(entity.getId())
-						&& !entity.getUuid().equals(pending.attackerId));
+						&& !entity.getUuid().equals(pending.attackerId)
+						&& !isFriendlyTarget(entity, attacker));
 		LivingEntity nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 		for (LivingEntity candidate : candidates) {
@@ -217,6 +220,24 @@ public final class ElectricArc {
 			}
 		}
 		return nearest;
+	}
+
+	/** 不增加视线限制，只排除队伍、已驯服宠物及攻击者拥有的 Ownable 实体。 */
+	private static boolean isFriendlyTarget(LivingEntity candidate, ServerPlayerEntity attacker) {
+		if (candidate.isTeammate(attacker)) {
+			return true;
+		}
+		if (candidate instanceof Tameable tameable) {
+			UUID owner = tameable.getOwnerUuid();
+			if (attacker.getUuid().equals(owner)) {
+				return true;
+			}
+		}
+		if (candidate instanceof Ownable ownable) {
+			Entity owner = ownable.getOwner();
+			return owner != null && attacker.getUuid().equals(owner.getUuid());
+		}
+		return false;
 	}
 
 	/** 连线电火花 + 命中点小爆发（服务端广播，附近玩家都看得到） */
