@@ -34,7 +34,6 @@ public class SummyEnchantment implements ModInitializer {
 	public void onInitialize() {
 		// 必须先读配置：自定义附魔的上限、保护上限都在运行时查询配置
 		SummyEnchantmentConfig.load();
-		ModAttributes.registerDefaultPlayerAttribute();
 
 		// 原版命令接口：/summyenchantment status|set|reset
 		SummyEnchantmentCommand.register();

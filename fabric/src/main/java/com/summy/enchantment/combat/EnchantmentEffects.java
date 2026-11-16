@@ -844,7 +844,7 @@ public final class EnchantmentEffects {
 		return level <= 0 ? 1.0F : 1.0F + config.arrowVelocityBonusPerLevel * level;
 	}
 
-	/** 属性缺失（被其它模组整体替换了玩家默认属性）时只提示一次 */
+	/** 玩家构造后仍未挂载属性时只提示一次 */
 	private static boolean lifeShieldAttributeMissingLogged;
 
 	/** 当前护盾值（存在自定义属性里、只由服务端读写） */
@@ -853,7 +853,7 @@ public final class EnchantmentEffects {
 		return instance == null ? 0.0F : (float) instance.getBaseValue();
 	}
 
-	/** 取护盾属性实例；没有（其它模组替换了玩家默认属性）时返回 null */
+	/** 取护盾属性实例；玩家构造期未能追加时返回 null。 */
 	private static EntityAttributeInstance lifeShieldInstance(LivingEntity entity) {
 		if (ModAttributes.LIFE_SHIELD == null) {
 			return null;
@@ -863,12 +863,12 @@ public final class EnchantmentEffects {
 		if (instance == null && entity instanceof PlayerEntity && !lifeShieldAttributeMissingLogged) {
 			lifeShieldAttributeMissingLogged = true;
 			SummyEnchantment.LOGGER.warn(
-					"[Summy Enchantment] 玩家实体上找不到 life_shield 属性（可能被其它模组替换了玩家默认属性），生命护盾将不生效");
+					"[Summy Enchantment] 玩家实体上找不到 life_shield 属性，生命护盾将不生效");
 		}
 		return instance;
 	}
 
-	/** 服务端首次 tick 时自检一次：确认护盾属性真的挂到了玩家默认属性上（只打一行日志） */
+	/** 服务端首次 tick 时自检一次：确认护盾属性已注册（实际挂载在玩家构造时完成） */
 	private static boolean lifeShieldAttributeChecked;
 
 	public static void verifyLifeShieldAttribute() {
@@ -880,14 +880,7 @@ public final class EnchantmentEffects {
 			SummyEnchantment.LOGGER.warn("[Summy Enchantment] life_shield 属性未注册，生命护盾将不生效");
 			return;
 		}
-		boolean attached = net.minecraft.entity.attribute.DefaultAttributeRegistry
-				.get(net.minecraft.entity.EntityType.PLAYER)
-				.has(ModAttributes.LIFE_SHIELD);
-		SummyEnchantment.LOGGER.info("[Summy Enchantment] 生命护盾属性已挂到玩家默认属性：{}", attached);
-		if (!attached) {
-			SummyEnchantment.LOGGER.warn("[Summy Enchantment] 生命护盾属性未挂到玩家默认属性，护盾将不生效"
-					+ "（可能被其它模组覆盖了玩家默认属性注册）");
-		}
+		SummyEnchantment.LOGGER.info("[Summy Enchantment] 生命护盾属性已注册，玩家构造时按需追加");
 	}
 
 	/**

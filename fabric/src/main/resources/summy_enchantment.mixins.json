@@ -6,6 +6,7 @@
   "mixins": [
     "AnvilScreenHandlerMixin",
     "ArrowEntityMixin",
+    "AttributeContainerAccessor",
     "BlockMixin",
     "BootstrapMixin",
     "BowItemMixin",

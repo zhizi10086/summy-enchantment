@@ -12,6 +12,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -29,9 +30,9 @@ public abstract class EnchantmentHelperMixin {
 		if (!SummyEnchantmentConfig.get().enableCustomSharpness) {
 			return original;
 		}
-		List<EnchantmentInstance> filtered = original.stream()
+		List<EnchantmentInstance> filtered = new ArrayList<>(original.stream()
 				.filter(entry -> !entry.enchantment.is(Enchantments.SHARPNESS))
-				.toList();
+				.toList());
 		return filtered.size() == original.size() ? original : filtered;
 	}
 

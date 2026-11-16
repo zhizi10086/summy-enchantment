@@ -1,11 +1,11 @@
 package com.summy.enchantment.registry;
 
 import com.summy.enchantment.SummyEnchantment;
-import net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.player.PlayerEntity;
+import com.summy.enchantment.mixin.AttributeContainerAccessor;
+import net.minecraft.entity.attribute.AttributeContainer;
 import net.minecraft.entity.attribute.ClampedEntityAttribute;
 import net.minecraft.entity.attribute.EntityAttribute;
+import net.minecraft.entity.attribute.EntityAttributeInstance;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.Registry;
 import net.minecraft.registry.entry.RegistryEntry;
@@ -38,12 +38,24 @@ public final class ModAttributes {
 		LIFE_SHIELD = Registries.ATTRIBUTE.getEntry(lifeShield);
 	}
 
-	public static void registerDefaultPlayerAttribute() {
-		// 玩家的默认属性表在游戏 bootstrap 阶段就已经建好（早于模组初始化），
-		// 所以这里用 Fabric 的接口整体替换一份：内容仍是原版 createPlayerAttributes()
-		// 的全部属性，只多挂我们这一条。若其它模组在此之后也注册玩家默认属性，
-		// 会以它的为准（我们只记一行日志并安全退化）。
-		FabricDefaultAttributeRegistry.register(EntityType.PLAYER,
-				PlayerEntity.createPlayerAttributes().add(LIFE_SHIELD, 0.0D));
+	/**
+	 * 给玩家属性容器追加生命护盾；已有时保持原值，不覆盖任何第三方属性。
+	 *
+	 * <p>Fabric 的默认属性注册接口会整份替换玩家属性表，因此 SE 改为在玩家构造末尾
+	 * 直接补入自己的 custom 属性。构造器 TAIL 早于玩家 NBT 反序列化，已保存的护盾值
+	 * 仍会正常写回该属性实例。
+	 *
+	 * @return 本次是否新增了属性实例
+	 */
+	public static boolean ensureLifeShieldAttribute(AttributeContainer attributes) {
+		if (LIFE_SHIELD == null || attributes == null || attributes.hasAttribute(LIFE_SHIELD)) {
+			return false;
+		}
+		EntityAttributeInstance instance = new EntityAttributeInstance(LIFE_SHIELD, ignored -> {
+		});
+		((AttributeContainerAccessor) (Object) attributes)
+				.summyEnchantment$getCustomAttributes()
+				.put(LIFE_SHIELD, instance);
+		return true;
 	}
 }

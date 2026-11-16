@@ -14,6 +14,7 @@ import com.summy.enchantment.registry.ModEnchantments;
 import com.summy.enchantment.registry.ModStatusEffects;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -28,6 +29,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -38,6 +41,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.world.item.enchantment.EnchantmentInstance;
 import net.minecraft.world.item.enchantment.Enchantments;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -46,6 +51,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.scores.PlayerTeam;
 import net.minecraft.world.scores.Scoreboard;
+import net.minecraft.util.RandomSource;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.ModList;
@@ -144,6 +150,7 @@ public final class EnchantmentForgeDevCheck {
 					case 50 -> checkMobStrengthToggle(player);
 					case 55 -> checkMobStrengthAutoRestore();
 					case 60 -> checkLifeShield(player);
+					case 62 -> checkEnchantmentCompatibilityMatrix(player);
 					case 80 -> checkLifeMending(player);
 					case 100 -> checkDeathsBlessing(player);
 					case 110 -> checkSoulGrace(player);
@@ -164,6 +171,7 @@ public final class EnchantmentForgeDevCheck {
 				case 26 -> checkRevengeWindowCleanup(player);
 				case 30 -> checkCompatibilityFixtures(player);
 				case 40 -> checkLifeShield(player);
+				case 62 -> checkEnchantmentCompatibilityMatrix(player);
 				case 60 -> checkLifeMending(player);
 				case 80 -> checkDeathsBlessing(player);
 				case 90 -> checkKubeJSEvents(player);
@@ -607,6 +615,190 @@ public final class EnchantmentForgeDevCheck {
 				"SE=" + EnchantmentEffects.lifeShield(player));
 		check("SE 生命护盾上限", Math.abs(EnchantmentEffects.lifeShieldCap(player) - 20.0F) < 0.01F,
 				"cap=" + EnchantmentEffects.lifeShieldCap(player));
+		checkMixedAbsorptionPool(player);
+	}
+
+	private static void checkMixedAbsorptionPool(ServerPlayer player) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		boolean oldLifeShield = config.enableLifeShield;
+		try {
+			config.enableLifeShield = true;
+			player.setItemSlot(EquipmentSlot.CHEST,
+					enchanted(Items.IRON_CHESTPLATE, ModEnchantments.LIFE_SHIELD, 1));
+			EnchantmentEffects.clearLifeShield(player);
+			player.setAbsorptionAmount(0.0F);
+			float cap = EnchantmentEffects.lifeShieldCap(player, 1);
+			float added = EnchantmentEffects.addLifeShield(player, cap);
+			float external = Math.max(0.5F, cap / 2.0F);
+			ResourceLocation externalCapId = ResourceLocation.fromNamespaceAndPath(
+					SummyEnchantment.MOD_ID, "devcheck_external_absorption");
+			AttributeInstance absorptionCap = player.getAttribute(Attributes.MAX_ABSORPTION);
+			if (absorptionCap != null) {
+				absorptionCap.addOrUpdateTransientModifier(new AttributeModifier(
+						externalCapId, external, AttributeModifier.Operation.ADD_VALUE));
+			}
+			check("生命护盾混合池：初始 SE 份额",
+					Math.abs(added - cap) < 0.01F
+							&& Math.abs(EnchantmentEffects.lifeShield(player) - cap) < 0.01F
+							&& Math.abs(player.getAbsorptionAmount() - cap) < 0.01F,
+					"cap=" + cap + " added=" + added
+							+ " se=" + EnchantmentEffects.lifeShield(player)
+							+ " absorption=" + player.getAbsorptionAmount());
+
+			player.setAbsorptionAmount(cap + external);
+			EnchantmentEffects.tickLifeShield(player);
+			check("生命护盾混合池：外部吸收不改变 SE 名义值",
+					Math.abs(EnchantmentEffects.lifeShield(player) - cap) < 0.01F,
+					"se=" + EnchantmentEffects.lifeShield(player)
+							+ " absorption=" + player.getAbsorptionAmount());
+
+			player.setAbsorptionAmount(cap);
+			EnchantmentEffects.tickLifeShield(player);
+			check("生命护盾混合池：共享池下降优先结算 SE",
+					Math.abs(EnchantmentEffects.lifeShield(player) - (cap - external)) < 0.01F,
+					"se=" + EnchantmentEffects.lifeShield(player)
+							+ " expected=" + (cap - external));
+
+			EnchantmentEffects.clearLifeShield(player);
+			check("生命护盾混合池：清除 SE 保留外部吸收",
+					Math.abs(player.getAbsorptionAmount() - external) < 0.01F,
+					"absorption=" + player.getAbsorptionAmount() + " external=" + external);
+
+			float readded = EnchantmentEffects.addLifeShield(player, cap);
+			check("生命护盾混合池：重新增加只增加 SE 份额",
+					Math.abs(readded - cap) < 0.01F
+							&& Math.abs(EnchantmentEffects.lifeShield(player) - cap) < 0.01F
+							&& Math.abs(player.getAbsorptionAmount() - (external + cap)) < 0.01F,
+					"added=" + readded + " se=" + EnchantmentEffects.lifeShield(player)
+							+ " absorption=" + player.getAbsorptionAmount());
+		} finally {
+			EnchantmentEffects.clearLifeShield(player);
+			player.setAbsorptionAmount(0.0F);
+			AttributeInstance absorptionCap = player.getAttribute(Attributes.MAX_ABSORPTION);
+			if (absorptionCap != null) {
+				absorptionCap.removeModifier(ResourceLocation.fromNamespaceAndPath(
+						SummyEnchantment.MOD_ID, "devcheck_external_absorption"));
+			}
+			player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
+			config.enableLifeShield = oldLifeShield;
+		}
+	}
+
+	private static void checkEnchantmentCompatibilityMatrix(ServerPlayer player) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		boolean oldSharpness = config.enableCustomSharpness;
+		boolean oldCrossbowCompat = config.enableCrossbowCompat;
+		boolean oldInfinityMending = config.enableInfinityMending;
+		Registry<Enchantment> registry = player.serverLevel().registryAccess()
+				.registryOrThrow(Registries.ENCHANTMENT);
+		try {
+			config.enableCustomSharpness = true;
+			config.enableCrossbowCompat = true;
+			config.enableInfinityMending = true;
+			Holder<Enchantment> sharpness = registry.getHolderOrThrow(Enchantments.SHARPNESS);
+			Holder<Enchantment> infinity = registry.getHolderOrThrow(Enchantments.INFINITY);
+			Holder<Enchantment> mending = registry.getHolderOrThrow(Enchantments.MENDING);
+			Holder<Enchantment> power = registry.getHolderOrThrow(Enchantments.POWER);
+			Holder<Enchantment> piercing = registry.getHolderOrThrow(Enchantments.PIERCING);
+
+			check("附魔互斥：锋利Plus与原版锋利",
+					incompatible(sharpness, ModEnchantments.SHARPNESS_PLUS.entry())
+							&& incompatible(ModEnchantments.SHARPNESS_PLUS.entry(), sharpness),
+					"vanilla_to_custom=" + incompatible(sharpness, ModEnchantments.SHARPNESS_PLUS.entry())
+							+ " custom_to_vanilla=" + incompatible(
+									ModEnchantments.SHARPNESS_PLUS.entry(), sharpness));
+			check("附魔互斥：自动熔炼与精准采集",
+					incompatible(ModEnchantments.AUTO_SMELT.entry(),
+							registry.getHolderOrThrow(Enchantments.SILK_TOUCH))
+							&& incompatible(registry.getHolderOrThrow(Enchantments.SILK_TOUCH),
+									ModEnchantments.AUTO_SMELT.entry()),
+					"auto_to_silk=" + incompatible(ModEnchantments.AUTO_SMELT.entry(),
+							registry.getHolderOrThrow(Enchantments.SILK_TOUCH))
+							+ " silk_to_auto=" + incompatible(registry.getHolderOrThrow(Enchantments.SILK_TOUCH),
+									ModEnchantments.AUTO_SMELT.entry()));
+			check("附魔互斥：无尽箭袋与无限",
+					incompatible(ModEnchantments.ENDLESS_QUIVER.entry(), infinity)
+							&& incompatible(infinity, ModEnchantments.ENDLESS_QUIVER.entry()),
+					"endless_to_infinity=" + incompatible(ModEnchantments.ENDLESS_QUIVER.entry(), infinity)
+							+ " infinity_to_endless=" + incompatible(
+									infinity, ModEnchantments.ENDLESS_QUIVER.entry()));
+			check("附魔互斥：破空之愿与本能释放",
+					incompatible(ModEnchantments.SKY_WISH.entry(), ModEnchantments.INSTINCTIVE_RELEASE.entry())
+							&& incompatible(ModEnchantments.INSTINCTIVE_RELEASE.entry(),
+									ModEnchantments.SKY_WISH.entry()),
+					"sky_to_instinct=" + incompatible(
+							ModEnchantments.SKY_WISH.entry(), ModEnchantments.INSTINCTIVE_RELEASE.entry())
+							+ " instinct_to_sky=" + incompatible(
+									ModEnchantments.INSTINCTIVE_RELEASE.entry(), ModEnchantments.SKY_WISH.entry()));
+			check("附魔互通：弓弩物品可附性",
+					power.value().canEnchant(new ItemStack(Items.CROSSBOW))
+							&& piercing.value().canEnchant(new ItemStack(Items.BOW)),
+					"crossbow_power=" + power.value().canEnchant(new ItemStack(Items.CROSSBOW))
+							+ " bow_piercing=" + piercing.value().canEnchant(new ItemStack(Items.BOW)));
+			check("附魔共存：无限与经验修补",
+					compatible(infinity, mending) && compatible(mending, infinity),
+					"infinity_to_mending=" + compatible(infinity, mending)
+							+ " mending_to_infinity=" + compatible(mending, infinity));
+
+			String forbiddenSelection = "";
+			List<Item> candidateItems = List.of(Items.DIAMOND_SWORD, Items.DIAMOND_PICKAXE,
+					Items.BOW, Items.CROSSBOW);
+			for (int draw = 0; draw < 256 && forbiddenSelection.isEmpty(); draw++) {
+				for (Item item : candidateItems) {
+					Set<Holder<Enchantment>> candidates = new java.util.HashSet<>();
+					for (EnchantmentInstance entry : EnchantmentHelper.selectEnchantment(
+							RandomSource.create(0x5E5E5E5EL + draw), new ItemStack(item), 30,
+							registry.holders().map(found -> (Holder<Enchantment>) found))) {
+						candidates.add(entry.enchantment);
+					}
+					forbiddenSelection = candidateViolation(item, candidates, sharpness, infinity,
+							registry.getHolderOrThrow(Enchantments.SILK_TOUCH));
+					if (!forbiddenSelection.isEmpty()) {
+						break;
+					}
+				}
+			}
+			check("附魔随机结果不含互斥组合", forbiddenSelection.isEmpty(),
+					"rolls=1024 forbidden=" + !forbiddenSelection.isEmpty()
+							+ " detail=" + forbiddenSelection);
+		} finally {
+			config.enableCustomSharpness = oldSharpness;
+			config.enableCrossbowCompat = oldCrossbowCompat;
+			config.enableInfinityMending = oldInfinityMending;
+		}
+	}
+
+	private static boolean compatible(Holder<Enchantment> first, Holder<Enchantment> second) {
+		return first != null && second != null
+				&& EnchantmentHelper.isEnchantmentCompatible(List.of(first), second);
+	}
+
+	private static boolean incompatible(Holder<Enchantment> first, Holder<Enchantment> second) {
+		return first != null && second != null && !compatible(first, second);
+	}
+
+	private static boolean containsPair(Set<Holder<Enchantment>> candidates,
+			Holder<Enchantment> first, Holder<Enchantment> second) {
+		return first != null && second != null
+				&& candidates.contains(first) && candidates.contains(second);
+	}
+
+	private static String candidateViolation(Item item, Set<Holder<Enchantment>> candidates,
+			Holder<Enchantment> sharpness, Holder<Enchantment> infinity, Holder<Enchantment> silkTouch) {
+		if (candidates.contains(sharpness)) {
+			return item + ":[vanilla_sharpness]";
+		}
+		if (containsPair(candidates, ModEnchantments.AUTO_SMELT.entry(), silkTouch)) {
+			return item + ":[auto_smelt,silk_touch]";
+		}
+		if (containsPair(candidates, ModEnchantments.ENDLESS_QUIVER.entry(), infinity)) {
+			return item + ":[endless_quiver,infinity]";
+		}
+		if (containsPair(candidates, ModEnchantments.SKY_WISH.entry(),
+				ModEnchantments.INSTINCTIVE_RELEASE.entry())) {
+			return item + ":[sky_wish,instinctive_release]";
+		}
+		return "";
 	}
 
 	private static void checkLifeMending(ServerPlayer player) {
