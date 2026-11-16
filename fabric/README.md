@@ -19,6 +19,14 @@ Minecraft **1.20.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Mod Menu（可选） | 7.2.2，仅编译期依赖；装了才有图形配置页 |
 | Java | 编译目标 17（本机 JDK 21 + `options.release = 17`） |
 
+## 1.4.3 兼容收口：属性、掉落与战斗结算
+
+- Fabric 玩家属性改为在玩家构造末尾按需追加 `life_shield`，不再替换整张默认属性表，也不会覆盖其它模组的玩家属性。
+- 自动熔炼改为包装原版掉落列表，保留方块经验、平台掉落回调与后续模组处理；额外箭首次伤害失败后不再重复调用伤害管线。
+- 生物关闭力量重定向时保留原版力量；灵魂加护复活后的 40 tick 内不被恶咒压血；斩杀报告使用真实命中结果；电刀过滤队友和攻击者宠物。
+- 弩多重射击使用可配置散射参数；复仇窗口在过期、断线和停服时清理；生命护盾混合吸收池、真实随机附魔矩阵和既有 KubeJS 服务端自检通过。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.3.jar`（1.4.2 保留）。
+
 ## 1.4.2 矛兼容：Backported Spears 1.5.0+
 
 - 1.4.7 继续使用旧公式反解，避免其玩家 `pierce` 路径重复计算基础伤害。
@@ -352,7 +360,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.2.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.3.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 >

@@ -1,6 +1,6 @@
 # Summy Enchantment KubeJS API
 
-> 适用版本：1.4.0（Fabric 与 Forge 功能一致）。
+> 适用版本：1.4.3（Fabric 与 Forge 功能一致）。
 > KubeJS 是可选依赖；未安装时 SE 不加载任何 KubeJS 类，玩法与没有安装 KubeJS 时一致。
 
 ## 支持版本与加载
