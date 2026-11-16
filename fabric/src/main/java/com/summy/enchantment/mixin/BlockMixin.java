@@ -2,69 +2,68 @@ package com.summy.enchantment.mixin;
 
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.ModEnchantments;
+import com.llamalad7.mixinextras.injector.ModifyReturnValue;
+import com.llamalad7.mixinextras.sugar.Local;
 import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.recipe.RecipeType;
 import net.minecraft.recipe.input.SingleStackRecipeInput;
 import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 自动熔炼：把挖掘掉落换成熔炉产物。
  *
- * <p>注入 {@code Block#dropStacks}（掉落生成的统一入口）：命中条件时改用
- * {@code getDroppedStacks} 取掉落 → 逐个查冶炼配方替换 → 由我们生成物品实体。
+ * <p>包装 {@code Block#getDroppedStacks} 的返回列表：命中条件时只替换列表中的物品，
+ * 原版 {@code dropStacks} 继续负责生成物品实体和执行方块掉落后处理。
  * 只要掉落物有熔炉配方就替换（没有黑名单），潜行时完全不介入（方便正常采集原矿）。
  */
 @Mixin(Block.class)
 public abstract class BlockMixin {
-	@Inject(
-			method = "dropStacks(Lnet/minecraft/block/BlockState;Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/entity/BlockEntity;Lnet/minecraft/entity/Entity;Lnet/minecraft/item/ItemStack;)V",
-			at = @At("HEAD"),
-			cancellable = true
+	@ModifyReturnValue(
+			method = "getDroppedStacks(Lnet/minecraft/block/BlockState;Lnet/minecraft/server/world/ServerWorld;Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/entity/BlockEntity;Lnet/minecraft/entity/Entity;Lnet/minecraft/item/ItemStack;)Ljava/util/List;",
+			at = @At("RETURN")
 	)
-	private static void summyEnchantment$autoSmelt(BlockState state, World world, BlockPos pos,
-			BlockEntity blockEntity, Entity entity, ItemStack tool, CallbackInfo ci) {
+	private static List<ItemStack> summyEnchantment$autoSmelt(
+			List<ItemStack> drops,
+			@Local(argsOnly = true) ServerWorld world,
+			@Local(argsOnly = true) Entity entity,
+			@Local(argsOnly = true) ItemStack tool) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		if (!config.enableAutoSmelt || ModEnchantments.AUTO_SMELT == null) {
-			return;
+			return drops;
 		}
-		if (!(world instanceof ServerWorld serverWorld) || !(entity instanceof PlayerEntity player)) {
-			return;
+		if (!(entity instanceof PlayerEntity player)) {
+			return drops;
 		}
 		// 潜行时自动关闭，方便正常采集
 		if (player.isSneaking()) {
-			return;
+			return drops;
 		}
 		if (ModEnchantments.AUTO_SMELT.level(tool) <= 0) {
-			return;
+			return drops;
 		}
-		List<ItemStack> drops = Block.getDroppedStacks(state, serverWorld, pos, blockEntity, entity, tool);
-		boolean smelted = false;
+		if (drops == null || drops.isEmpty()) {
+			return drops == null ? List.of() : drops;
+		}
+		List<ItemStack> transformed = new ArrayList<>(drops.size());
 		for (ItemStack drop : drops) {
-			ItemStack result = smeltResult(serverWorld, drop);
+			ItemStack result = smeltResult(world, drop);
 			if (!result.isEmpty()) {
-				smelted = true;
 				ItemStack output = result.copy();
 				output.setCount(result.getCount() * drop.getCount());
-				Block.dropStack(serverWorld, pos, output);
+				transformed.add(output);
 			} else {
-				Block.dropStack(serverWorld, pos, drop);
+				transformed.add(drop);
 			}
 		}
-		// 即便是空掉落也取消原版流程（我们已经完整接管）
-		ci.cancel();
+		return transformed;
 	}
 
 	/** 查询熔炉配方；没有对应配方时返回空 */

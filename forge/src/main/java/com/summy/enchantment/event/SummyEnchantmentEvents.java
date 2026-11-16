@@ -98,10 +98,11 @@ public final class SummyEnchantmentEvents {
 		}
 	}
 
-	/** 断线：清掉忠诚投掷冷却与灵魂加护冷却的登记，并忘记粒子偏好 */
+	/** 断线：清掉忠诚投掷与复仇窗口，并忘记粒子偏好 */
 	private static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
 		if (event.getEntity() instanceof ServerPlayer player) {
 			EnchantmentEffects.clearLoyaltyCooldown(player.getUUID());
+			EnchantmentEffects.clearRevengeWindow(player.getUUID());
 			ParticlePreferences.clear(player.getUUID());
 			// 死亡之眼：断线即清空层数（重登不保留）
 			ArrowTraits.clearPlayer(player);
@@ -148,6 +149,7 @@ public final class SummyEnchantmentEvents {
 		ParticlePreferences.clearAll();
 		ArrowTraits.clearAll();
 		EnchantmentEffects.clearHiddenBladeAll();
+		EnchantmentEffects.clearRevengeWindows();
 		ElectricArc.clearAll();
 	}
 }

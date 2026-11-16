@@ -8,9 +8,11 @@ import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.compat.SummyReliquaryCompat;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
+import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModEnchantments;
 import com.summy.enchantment.registry.ModStatusEffects;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.client.Minecraft;
@@ -18,14 +20,17 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.Wolf;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.food.FoodData;
@@ -34,6 +39,9 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.item.enchantment.Enchantments;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.inventory.AnvilMenu;
 import net.minecraft.world.scores.PlayerTeam;
@@ -50,7 +58,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * SE 的真实客户端开发自检。
@@ -127,6 +137,9 @@ public final class EnchantmentForgeDevCheck {
 			if ("core".equals(MODE)) {
 				switch (serverTick) {
 					case 20 -> prepareWorld(player);
+					case 22 -> checkAutoSmeltPipeline(player);
+					case 24 -> checkExtraArrowFailureIsNotRetried(player);
+					case 26 -> checkRevengeWindowCleanup(player);
 					case 40 -> checkCoreRules(player);
 					case 50 -> checkMobStrengthToggle(player);
 					case 55 -> checkMobStrengthAutoRestore();
@@ -146,6 +159,9 @@ public final class EnchantmentForgeDevCheck {
 			}
 			switch (serverTick) {
 				case 20 -> prepareWorld(player);
+				case 22 -> checkAutoSmeltPipeline(player);
+				case 24 -> checkExtraArrowFailureIsNotRetried(player);
+				case 26 -> checkRevengeWindowCleanup(player);
 				case 30 -> checkCompatibilityFixtures(player);
 				case 40 -> checkLifeShield(player);
 				case 60 -> checkLifeMending(player);
@@ -209,6 +225,142 @@ public final class EnchantmentForgeDevCheck {
 				"sky_to_inst=" + !compatible(ModEnchantments.SKY_WISH, ModEnchantments.INSTINCTIVE_RELEASE)
 						+ " inst_to_sky=" + !compatible(
 								ModEnchantments.INSTINCTIVE_RELEASE, ModEnchantments.SKY_WISH));
+	}
+
+	private static void checkAutoSmeltPipeline(ServerPlayer player) {
+		ServerLevel level = player.serverLevel();
+		BlockPos pos = player.blockPosition().above(12);
+		AABB probe = new AABB(
+				pos.getX() - 2.0D, pos.getY() - 2.0D, pos.getZ() - 2.0D,
+				pos.getX() + 3.0D, pos.getY() + 3.0D, pos.getZ() + 3.0D
+		);
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		boolean oldAutoSmelt = config.enableAutoSmelt;
+		boolean oldSneaking = player.isShiftKeyDown();
+		try {
+			config.enableAutoSmelt = true;
+			player.setShiftKeyDown(false);
+			clearDropProbe(level, probe);
+			ItemStack tool = enchanted(Items.DIAMOND_PICKAXE, ModEnchantments.AUTO_SMELT, 1);
+			Block.dropResources(Blocks.IRON_ORE.defaultBlockState(), level, pos, null, player, tool);
+			List<ItemEntity> smeltedDrops = level.getEntitiesOfClass(ItemEntity.class, probe, entity -> true);
+			long ingots = smeltedDrops.stream()
+					.filter(entity -> entity.getItem().is(Items.IRON_INGOT))
+					.count();
+			long rawOre = smeltedDrops.stream()
+					.filter(entity -> entity.getItem().is(Items.RAW_IRON))
+					.count();
+			check("自动熔炼保留原掉落入口并替换产物", ingots == 1 && rawOre == 0,
+					"ingots=" + ingots + " raw_iron=" + rawOre);
+
+			clearDropProbe(level, probe);
+			player.setShiftKeyDown(true);
+			Block.dropResources(Blocks.IRON_ORE.defaultBlockState(), level, pos, null, player, tool);
+			List<ItemEntity> sneakingDrops = level.getEntitiesOfClass(ItemEntity.class, probe, entity -> true);
+			long sneakingRaw = sneakingDrops.stream()
+					.filter(entity -> entity.getItem().is(Items.RAW_IRON))
+					.count();
+			check("自动熔炼潜行时绕开", sneakingRaw == 1,
+					"raw_iron=" + sneakingRaw);
+
+			clearDropProbe(level, probe);
+			player.setShiftKeyDown(false);
+			Block.dropResources(Blocks.DIAMOND_ORE.defaultBlockState(), level, pos, null, player, tool);
+			long experienceOrbs = level.getEntitiesOfClass(ExperienceOrb.class, probe, entity -> true).size();
+			check("自动熔炼保留方块经验结算", experienceOrbs > 0,
+					"experience_orbs=" + experienceOrbs);
+		} finally {
+			config.enableAutoSmelt = oldAutoSmelt;
+			player.setShiftKeyDown(oldSneaking);
+			clearDropProbe(level, probe);
+		}
+	}
+
+	private static void clearDropProbe(ServerLevel level, AABB probe) {
+		level.getEntitiesOfClass(ItemEntity.class, probe, entity -> true).forEach(ItemEntity::discard);
+		level.getEntitiesOfClass(ExperienceOrb.class, probe, entity -> true).forEach(ExperienceOrb::discard);
+	}
+
+	private static void checkExtraArrowFailureIsNotRetried(ServerPlayer player) {
+		ServerLevel level = player.serverLevel();
+		BlockPos pos = player.blockPosition().above(18);
+		RejectingZombie target = new RejectingZombie(level);
+		target.moveTo(
+				pos.getX() + 2.5D, pos.getY(), pos.getZ() + 0.5D, 0.0F, 0.0F);
+		target.setNoAi(true);
+		target.setNoGravity(true);
+		target.setPersistenceRequired();
+		target.addTag(TEST_TAG);
+		level.addFreshEntity(target);
+
+		AbstractArrow arrow = EntityType.ARROW.create(level);
+		if (arrow == null) {
+			throw new IllegalStateException("无法创建额外箭测试实体");
+		}
+		arrow.setOwner(player);
+		arrow.moveTo(pos.getX() + 0.5D, pos.getY() + 0.9D, pos.getZ() + 0.5D, 0.0F, 0.0F);
+		arrow.setNoGravity(true);
+		arrow.setDeltaMovement(1.0D, 0.0D, 0.0D);
+		EnchantmentEffects.markExtraHitArrow(arrow);
+		level.addFreshEntity(arrow);
+		for (int i = 0; i < 8 && !arrow.isRemoved() && target.damageAttempts == 0; i++) {
+			arrow.tick();
+		}
+		check("额外箭首次伤害失败后不重试", target.damageAttempts == 1,
+				"damage_attempts=" + target.damageAttempts);
+		arrow.discard();
+		target.discard();
+	}
+
+	private static void checkRevengeWindowCleanup(ServerPlayer player) {
+		Map<Object, Object> windows = staticMap(EnchantmentEffects.class, "REVENGE_WINDOW");
+		windows.clear();
+		UUID playerId = player.getUUID();
+		windows.put(playerId, player.level().getGameTime() - 1L);
+		EnchantmentEffects.revengeMultiplier(player);
+		check("复仇过期窗口即时清理", !windows.containsKey(playerId),
+				"remaining=" + windows.size());
+
+		windows.put(playerId, player.level().getGameTime() + 60L);
+		EnchantmentEffects.clearRevengeWindow(playerId);
+		check("复仇断线窗口清理", !windows.containsKey(playerId),
+				"remaining=" + windows.size());
+
+		windows.put(playerId, player.level().getGameTime() + 60L);
+		windows.put(UUID.randomUUID(), player.level().getGameTime() + 60L);
+		EnchantmentEffects.clearRevengeWindows();
+		check("复仇停服窗口清理", windows.isEmpty(),
+				"remaining=" + windows.size());
+		windows.clear();
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<Object, Object> staticMap(Class<?> owner, String fieldName) {
+		try {
+			Field field = owner.getDeclaredField(fieldName);
+			field.setAccessible(true);
+			Object value = field.get(null);
+			if (value instanceof Map<?, ?> map) {
+				return (Map<Object, Object>) map;
+			}
+		} catch (ReflectiveOperationException exception) {
+			log("读取静态映射失败：" + owner.getSimpleName() + "#" + fieldName + " " + exception);
+		}
+		return Map.of();
+	}
+
+	private static final class RejectingZombie extends Zombie {
+		private int damageAttempts;
+
+		private RejectingZombie(ServerLevel level) {
+			super(EntityType.ZOMBIE, level);
+		}
+
+		@Override
+		public boolean hurt(DamageSource source, float amount) {
+			damageAttempts++;
+			return false;
+		}
 	}
 
 	private static void checkCoreRules(ServerPlayer player) {

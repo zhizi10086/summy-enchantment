@@ -200,10 +200,10 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 	}
 
 	/**
-	 * 保险：标记过的箭若这次伤害仍被免疫（返回 false），清掉冷却重试一次。
+	 * 结算死亡之眼倍率，并记录这一次投射物伤害的真实结果。
 	 *
-	 * <p>原版只有伤害成功才会调用 {@code onHit}，而药水效果正是在那里施加的；
-	 * 重试一次能保证"伤害 + 药水效果"都落地（多重射击每支箭都带药水箭时尤其重要）。
+	 * <p>额外箭只在命中入口前清一次受伤冷却；若伤害事件或保护规则仍返回失败，
+	 * 不再次调用伤害管线，避免一次命中重复触发第三方事件。
 	 */
 	@WrapOperation(
 			method = "onEntityHit",
@@ -212,17 +212,13 @@ public abstract class PersistentProjectileEntityMixin implements ArrowParticleCa
 					target = "Lnet/minecraft/entity/Entity;damage(Lnet/minecraft/entity/damage/DamageSource;F)Z"
 			)
 	)
-	private boolean summyEnchantment$retryExtraHit(Entity target, DamageSource source, float amount,
+	private boolean summyEnchantment$adjustProjectileHit(Entity target, DamageSource source, float amount,
 			Operation<Boolean> original) {
 		PersistentProjectileEntity self = (PersistentProjectileEntity) (Object) this;
 		// 死亡之眼（1.3.7）：命中时先用"当前层数"放大本次伤害（穿透一箭多目标时每个目标各结算一次）
 		float deathEyeMultiplier = ArrowTraits.deathEyeMultiplier(self);
 		float adjusted = amount * deathEyeMultiplier;
 		boolean hit = original.call(target, source, adjusted);
-		if (!hit && target instanceof LivingEntity living && EnchantmentEffects.isExtraHitArrow(self)) {
-			living.timeUntilRegen = 0;
-			hit = original.call(target, source, adjusted);
-		}
 		if (hit && target instanceof LivingEntity) {
 			// 命中生物后才加层（先算伤害再加层），并清掉连续落空计数
 			ArrowTraits.recordHit(self, target);
