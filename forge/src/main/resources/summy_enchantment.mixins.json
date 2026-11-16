@@ -4,6 +4,7 @@
   "package": "com.summy.enchantment.mixin",
   "compatibilityLevel": "JAVA_21",
   "refmap": "summy-enchantment.refmap.json",
+  "plugin": "com.summy.enchantment.compat.SummyEnchantmentMixinPlugin",
   "mixins": [
     "AnvilScreenHandlerMixin",
     "ArrowEntityMixin",

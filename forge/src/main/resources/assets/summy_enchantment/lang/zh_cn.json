@@ -305,6 +305,7 @@
 
   "commands.summy_enchantment.status.header": "Summy Enchantment 当前配置：",
   "commands.summy_enchantment.status.line": " - %s：%s",
+  "commands.summy_enchantment.anvil.apotheosis_inactive": "Apotheosis 正在接管铁砧成本；SE 的铁砧选项会保留，但当前不生效。",
   "commands.summy_enchantment.set": "已将 %s 设为 %s",
   "commands.summy_enchantment.reset": "已恢复 Summy Enchantment 的默认配置",
 

@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.DoubleArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.summy.enchantment.compat.AnvilCostCompat;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.config.SummyEnchantmentConfig.Option;
 import com.summy.enchantment.config.SummyEnchantmentConfig.Category;
@@ -93,6 +94,10 @@ public final class SummyEnchantmentCommand {
 	private static int status(CommandSourceStack source) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		source.sendSuccess(() -> Component.translatable("commands.summy_enchantment.status.header"), false);
+		if (AnvilCostCompat.isApotheosisLoaded()) {
+			source.sendSuccess(() -> Component.translatable(
+					"commands.summy_enchantment.anvil.apotheosis_inactive"), false);
+		}
 		for (Category category : Category.values()) {
 			source.sendSuccess(() -> Component.translatable(category.translationKey()), false);
 			for (Option option : Option.values()) {
@@ -113,6 +118,11 @@ public final class SummyEnchantmentCommand {
 		config.save();
 		source.sendSuccess(() -> Component.translatable("commands.summy_enchantment.set",
 				Component.translatable(option.translationKey()), describe(option, config)), true);
+		if (AnvilCostCompat.isApotheosisLoaded()
+				&& (option == Option.ENABLE_ANVIL_XP_COST || option == Option.ANVIL_MAX_COST_LEVEL)) {
+			source.sendSuccess(() -> Component.translatable(
+					"commands.summy_enchantment.anvil.apotheosis_inactive"), false);
+		}
 		// 让在线客户端立刻同步到新配置
 		ConfigSync.broadcast(source.getServer());
 		return 1;

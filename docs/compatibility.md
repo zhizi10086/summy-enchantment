@@ -30,6 +30,7 @@
 
 ## Mixin 兼容规则
 
+- **Apotheosis 铁砧成本**：只要检测到 `apotheosis`，SE 就整体停用经验点成本、40 级上限修改和客户端“等级/点数”显示，由 Apotheosis 接管铁砧。`enable_anvil_xp_cost` 与 `anvil_max_cost_level` 的保存值不会被改写，移除 Apotheosis 并重启后按原偏好恢复。
 - **Twilight Dusk 幻影箭重力**：Twilight Dusk 1.2 使用 `@ModifyConstant` 把幻影箭的重力常量减半。SE 1.4.1 不再占用该常量，而是读取箭矢 `tick` 中最终准备写入的纵向速度，按实际重力乘 SE 轻盈倍率。两项同时存在时按乘算处理，例如 `0.5 × 0.6 = 0.3`。
 - **大胃袋与其它饥饿容量修改**：SE 1.4.1 包装饥饿封顶表达式与“还能吃”返回值，不从固定 `20` 常量抢占。SE 保证大胃袋自身上限，同时保留其它模组更高或更宽的判定；有效上限取双方较高值。
 
@@ -65,4 +66,5 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 2026-11-02，Forge 真实客户端同时装载官方 Farmer's Delight `1.20.1-1.3.4`（SHA-256 `34f03eb671ea1ca579b00c98e4541404cb96d1a292014aed9cc5eb45ad8afbce`）与 Twilight Dusk `1.2fix1`（SHA-256 `91f68bc7fa1f1fdc2e505c3b184f4c051ba1bed7656d8163f68b74d4aef2e40e`），并安装 Twilight Dusk 所需的 Twilight Forest 4.3.2508、Curios 5.14.1。`[SE-DEVCHECK]` 共 19 项、失败 0 项。
 - 同一轮日志确认 `PersistentProjectileEntityMixin`、`PhantomArrowGravityMixin`、`HungerManagerMixin`、`NourishmentAlwaysEatMixin` 均成功应用，未出现 `already redirected`、`Critical injection failure` 或 Mixin apply 失败。
 - 幻影箭重力实测为普通箭的一半；轻盈 2 级再乘 0.5，普通箭与幻影箭都正确保留了 Twilight Dusk 的减重力。大胃袋 5 级实际从 0 吃至 30、40，满值时 `needsFood=false`；Farmer's Delight 的滋养效果在 40 点时仍允许进食。
+- 2026-11-16，NeoForge 1.21.1 无 Apotheosis：`clean build`、客户端核心自检 35 项/失败 0 项和专用服务端 `Done` 通过，SE 铁砧 Mixin 正常应用。对应 1.21.1 Apotheosis 实机组合等待可用 JAR 后补充验证。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。
