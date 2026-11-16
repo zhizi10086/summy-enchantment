@@ -96,9 +96,11 @@ public abstract class PlayerEntityMixin {
 			method = "<init>(Lnet/minecraft/world/World;Lnet/minecraft/util/math/BlockPos;FLcom/mojang/authlib/GameProfile;)V",
 			at = @At("TAIL")
 	)
-	private void summyEnchantment$bindHungerOwner(World world, BlockPos pos, float yaw, GameProfile profile,
+	private void summyEnchantment$onPlayerConstruct(World world, BlockPos pos, float yaw, GameProfile profile,
 			CallbackInfo ci) {
 		PlayerEntity self = summyEnchantment$self();
+		// 同时补齐玩家属性容器中缺失的生命护盾属性。
+		ModAttributes.ensureLifeShieldAttribute(self.getAttributes());
 		if (self.getHungerManager() instanceof HungerOwner owner) {
 			owner.summyEnchantment$setOwner(self);
 		}
