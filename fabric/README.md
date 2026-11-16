@@ -386,7 +386,7 @@ gradlew build
 
 - 铁砧 `cost` 字段语义变为"经验点数"（其它模组若直接读 `getLevelCost()` 可能显示差异）。
 - **生命护盾与其它吸收来源是"纯加法"关系**（1.3.3 起）：护盾值自身存在属性 `summy_enchantment:life_shield` 里（随玩家 NBT 持久化，`/attribute @s summy_enchantment:life_shield get` 可查），写入吸收池时**只加我方增量**、消耗时**只扣我方那一份**，池子被别的模组抬高时只跟随记录、不夺权重写。因此「原版吸收 + 生命护盾 + 其它模组（例如饰品模组的魂心黄血）」稳定相加。护盾部分始终夹在「最大生命 × 20% × 等级」以内，数值量化到半颗心、上限向下取半颗心（避免 HUD 多画一颗）。1.3.2 之前这里会重写总量，可能把别人的吸收抹掉，详见对应发布记录。
-- 生命护盾属性的挂载依赖玩家默认属性表：若其它模组在 `FabricDefaultAttributeRegistry` 之后也注册了玩家默认属性，会以它的为准；服务端首次 tick 会打一行自检日志（`生命护盾属性已挂到玩家默认属性：true/false`），失败时护盾安全退化、不会崩。
+- 生命护盾属性在玩家构造末尾按需追加：Fabric 直接向玩家属性容器的 custom 映射补入缺失的 `summy_enchantment:life_shield`，不会整表覆盖第三方玩家默认属性；已有属性值和修饰符保持不变。服务端首次 tick 只确认属性已注册，实际挂载由玩家构造和 DevCheck 验证。
 - 忠诚改版的"返回前不能再次投掷"按"玩家 64 格内、飞行不超过 30 秒的假三叉戟"判断，超时/飞出范围/实体消失都会立即放行，**任何情况下都不会永久无法投掷**；超过 60 秒未回收的假三叉戟会被清除（本体始终在玩家处，不构成物品损失）。
 - 力量Plus 改为命中时倍率后，属性面板不再显示它带来的攻击力；其它模组用 `hasStatusEffect(StatusEffects.STRENGTH)` 判断力量将不再命中。
 - 配置以服务端为准并自动同步客户端；命令需要 OP 权限等级 2。
@@ -602,7 +602,7 @@ gradlew build
 ### 生命护盾改为玩家属性（不再占用 buff）
 
 - 新注册属性 `summy_enchantment:life_shield`（默认 0、范围 0–2048，**不参与属性同步**）。护盾值存在属性基础值里，随玩家 NBT 持久化，可用 `/attribute @s summy_enchantment:life_shield get` 查看。
-- 挂载方式：玩家的默认属性表在游戏 bootstrap 阶段就已经建好（**早于**模组初始化，所以"往 createPlayerAttributes() 返回值里追加"的钩子拿到的是空属性），因此改用 Fabric 的 `FabricDefaultAttributeRegistry` 注册一份以 `PlayerEntity.createPlayerAttributes()` 为底、只多一条护盾属性的玩家默认属性。若其它模组在此之后也注册玩家默认属性，会以它的为准——服务端首次 tick 会自检并打一行日志（`生命护盾属性已挂到玩家默认属性：true/false`），失败时护盾安全退化、不会崩。
+- 1.3.1 当时采用 Fabric 的 `FabricDefaultAttributeRegistry` 注册一份以 `PlayerEntity.createPlayerAttributes()` 为底、只多一条护盾属性的玩家默认属性；后续版本已改为玩家构造末尾的按需追加，避免整表覆盖第三方属性。
 - 每 tick 的护盾维护（回复累积、被消耗的记账、上限裁剪、脱下胸甲后归零）由 `LivingEntityMixin#tick`（服务端）驱动，且"没有护盾值、胸甲无附魔、身上也没有吸收值"时直接返回，性能不降；数值口径（半颗心量化、原版吸收 + 我方护盾）与之前完全一致。
 - 状态效果 `summy_enchantment:life_shield` 与其图标注册已删除：效果栏不会再出现"生命护盾"图标，**黄心照旧**（来自原版同步的伤害吸收值）。原有图标贴图改名复用为灵魂加护的冷却图标。
 

@@ -86,6 +86,6 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 同一轮日志确认 `PersistentProjectileEntityMixin`、`PhantomArrowGravityMixin`、`HungerManagerMixin`、`NourishmentAlwaysEatMixin` 均成功应用，未出现 `already redirected`、`Critical injection failure` 或 Mixin apply 失败。
 - 幻影箭重力实测为普通箭的一半；轻盈 2 级再乘 0.5，普通箭与幻影箭都正确保留了 Twilight Dusk 的减重力。大胃袋 5 级实际从 0 吃至 30、40，满值时 `needsFood=false`；Farmer's Delight 的滋养效果在 40 点时仍允许进食。
 - 2026-11-16，Forge 1.20.1 + Apotheosis 7.4.8：SE 自动停用两个铁砧 Mixin，专用服务端到 `Done`，客户端 `[SE-DEVCHECK]` 13 项、失败 0 项，无 SE 铁砧注入冲突；移除 Apotheosis 后 SE 铁砧 Mixin 恢复并读取原保存配置。
-- 2026-11-16 兼容收口：Fabric 完整自检 44 项、失败 0 项；Forge 完整自检 46 项、失败 0 项；Forge 与 Celestial/Apotheosis/Majrusz 同装的外部矩阵 49 项、失败 0 项。Fabric 玩家属性改为构造期追加，混合吸收池与真实随机附魔结果均通过。
+- 2026-11-16 兼容收口：Fabric 完整自检 44/0；Forge 完整自检 46/0；Forge 与 Celestial/Apotheosis/Majrusz 同装的外部矩阵 49/0。Fabric 玩家属性改为构造期追加，混合吸收池与真实随机附魔结果均通过。
 - 同一轮 Spears 1.4.7 与 1.5.0 专项均为 9 项、失败 0 项；Forge KubeJS 自检通过服务端 API、客户端隔离和七类事件检查。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。

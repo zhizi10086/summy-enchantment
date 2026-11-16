@@ -115,8 +115,8 @@ $compatibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'docs\compat
 Check-Release 'Fabric source version' (-not [string]::IsNullOrWhiteSpace($fabricVersion)) $fabricVersion
 Check-Release 'Forge source version' (-not [string]::IsNullOrWhiteSpace($forgeVersion)) $forgeVersion
 Check-Release 'Release notes scale' ($releaseNotes -match '32.*99.*11') '32/99/11'
-Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*13.*0') 'Forge 13/0'
-Check-Release 'Compatibility record' ($compatibility -match 'Forge.*13.*0') 'Forge 13/0 client check'
+Check-Release 'Release notes verification' ($releaseNotes -match '(?s)Forge[^\r\n]*(?:\d+/0|0 failures)') 'Forge x/0'
+Check-Release 'Compatibility record' ($compatibility -match '(?s)Forge[^\r\n]*(?:\d+/0|0 failures)') 'Forge x/0'
 Check-Release 'No local absolute paths in public docs' (-not (($releaseNotes + $compatibility) -match '[A-Z]:\\')) 'docs/releases + docs/compatibility'
 
 if ($failures.Count -eq 0) {
@@ -126,7 +126,9 @@ if ($failures.Count -eq 0) {
         $entries = @(& jar tf $pair.Path)
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pair.Path).Hash
         $devcheckCount = @($entries | Where-Object { $_ -like '*devcheck*' }).Count
-        $externalCount = @($entries | Where-Object { $_ -match '(?i)^(celestial|apotheosis|majrusz)' }).Count
+        $externalCount = @($entries | Where-Object {
+            $_ -match '(?i)^(celestial|apotheosis|majrusz|dev/latvian|com/summy/reliquary|com/notunanancyowen/spears)'
+        }).Count
         $licenseCount = @($entries | Where-Object { $_ -eq 'LICENSE_summy-enchantment' }).Count
         $metadataText = Get-ZipEntryText $pair.Path $pair.Metadata
 
