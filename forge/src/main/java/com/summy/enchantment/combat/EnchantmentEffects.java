@@ -1513,6 +1513,9 @@ public final class EnchantmentEffects {
 		}
 		Long until = REVENGE_WINDOW.get(attacker.getUUID());
 		if (until == null || until < attacker.level().getGameTime()) {
+			if (until != null) {
+				REVENGE_WINDOW.remove(attacker.getUUID(), until);
+			}
 			return 1.0F;
 		}
 		int level = chestLevel(attacker, ModEnchantments.REVENGE);
@@ -1520,6 +1523,18 @@ public final class EnchantmentEffects {
 			return 1.0F;
 		}
 		return 1.0F + revengeBonus(level);
+	}
+
+	/** 玩家断线时清理复仇窗口，避免长期服务器残留已下线 UUID。 */
+	public static void clearRevengeWindow(UUID playerId) {
+		if (playerId != null) {
+			REVENGE_WINDOW.remove(playerId);
+		}
+	}
+
+	/** 服务端停止时清空所有复仇窗口。 */
+	public static void clearRevengeWindows() {
+		REVENGE_WINDOW.clear();
 	}
 
 	/**
@@ -1550,7 +1565,8 @@ public final class EnchantmentEffects {
 	 * 灵魂加护：取消这次死亡并原地复活。
 	 *
 	 * <p>满血 + 清掉全部负面效果 + 2 秒抗性，并给出原版图腾的音效与粒子（明显、不提供开关）；
-	 * 冷却按服务端世界时间计时（重登可绕过，属已知取舍），同时挂一个只作显示的冷却效果。
+	 * 冷却按服务端世界时间保存在运行期计时表中，普通重登不会清除；
+	 * 同时挂一个只作显示的冷却效果，清掉该效果也不会绕过权威计时。
 	 *
 	 * @return true 表示已经复活（调用方应阻止死亡）
 	 */
@@ -1625,7 +1641,7 @@ public final class EnchantmentEffects {
 				remaining, 0, false, false, true));
 	}
 
-	/** 玩家断线时清掉灵魂加护的冷却登记 */
+	/** 自检或测试需要重新触发时清掉灵魂加护冷却；普通断线不走这里。 */
 	public static void clearSoulGraceCooldown(UUID playerId) {
 		if (playerId != null) {
 			SOUL_GRACE_COOLDOWN.remove(playerId);

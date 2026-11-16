@@ -5,34 +5,54 @@ import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
+import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.ModEnchantments;
 import com.summy.enchantment.registry.ModStatusEffects;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.block.Block;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.enchantment.Enchantments;
 import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.entity.ExperienceOrbEntity;
+import net.minecraft.entity.ItemEntity;
 import net.minecraft.entity.attribute.EntityAttributes;
+import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.ZombieEntity;
 import net.minecraft.entity.passive.WolfEntity;
+import net.minecraft.entity.projectile.PersistentProjectileEntity;
+import net.minecraft.inventory.SimpleInventory;
 import net.minecraft.item.Item;
+import net.minecraft.item.CrossbowItem;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
+import net.minecraft.nbt.NbtCompound;
+import net.minecraft.nbt.NbtList;
+import net.minecraft.recipe.AbstractCookingRecipe;
+import net.minecraft.recipe.RecipeType;
 import net.minecraft.registry.Registries;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.scoreboard.Scoreboard;
 import net.minecraft.scoreboard.Team;
 import net.minecraft.util.Identifier;
+import net.minecraft.util.Hand;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
 import net.minecraft.util.math.Vec3d;
 
+import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * SE 的 Fabric 原生真实客户端自检。
@@ -119,6 +139,10 @@ public final class EnchantmentFabricDevCheck {
 			}
 			switch (serverTick) {
 				case 20 -> prepareWorld(player);
+				case 22 -> checkAutoSmeltPipeline(player);
+				case 24 -> checkExtraArrowFailureIsNotRetried(player);
+				case 26 -> checkRevengeWindowCleanup(player);
+				case 28 -> checkCrossbowMultishotSpread(player);
 				case 40 -> checkMajruszOutgoing(player);
 				case 60 -> checkMajruszIncoming(player);
 				case 70 -> checkMobStrengthToggle(player);
@@ -191,6 +215,237 @@ public final class EnchantmentFabricDevCheck {
 						ModEnchantments.INSTINCTIVE_RELEASE)
 						+ " inst_to_sky=" + EnchantmentHelper.isCompatible(
 								List.of(ModEnchantments.INSTINCTIVE_RELEASE), ModEnchantments.SKY_WISH));
+	}
+
+	private static void checkAutoSmeltPipeline(ServerPlayerEntity player) {
+		ServerWorld world = player.getServerWorld();
+		BlockPos pos = player.getBlockPos().add(0, 12, 0);
+		Box probe = new Box(
+				pos.getX() - 2.0D, pos.getY() - 2.0D, pos.getZ() - 2.0D,
+				pos.getX() + 3.0D, pos.getY() + 3.0D, pos.getZ() + 3.0D
+		);
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		boolean oldAutoSmelt = config.enableAutoSmelt;
+		boolean oldSneaking = player.isSneaking();
+		try {
+			config.enableAutoSmelt = true;
+			player.setSneaking(false);
+			clearDropProbe(world, probe);
+			ItemStack tool = enchanted(Items.DIAMOND_PICKAXE, ModEnchantments.AUTO_SMELT, 1);
+			Block.dropStacks(Blocks.IRON_ORE.getDefaultState(), world, pos, null, player, tool);
+			List<ItemEntity> smeltedDrops = world.getEntitiesByClass(ItemEntity.class, probe, entity -> true);
+			long ingots = smeltedDrops.stream()
+					.filter(entity -> entity.getStack().isOf(Items.IRON_INGOT))
+					.count();
+			long rawOre = smeltedDrops.stream()
+					.filter(entity -> entity.getStack().isOf(Items.RAW_IRON))
+					.count();
+			check("自动熔炼保留原掉落入口并替换产物", ingots == 1 && rawOre == 0,
+					"ingots=" + ingots + " raw_iron=" + rawOre);
+
+			clearDropProbe(world, probe);
+			player.setSneaking(true);
+			Block.dropStacks(Blocks.IRON_ORE.getDefaultState(), world, pos, null, player, tool);
+			List<ItemEntity> sneakingDrops = world.getEntitiesByClass(ItemEntity.class, probe, entity -> true);
+			long sneakingRaw = sneakingDrops.stream()
+					.filter(entity -> entity.getStack().isOf(Items.RAW_IRON))
+					.count();
+			check("自动熔炼潜行时绕开", sneakingRaw == 1,
+					"raw_iron=" + sneakingRaw);
+
+			clearDropProbe(world, probe);
+			player.setSneaking(false);
+			Block.dropStacks(Blocks.DIAMOND_ORE.getDefaultState(), world, pos, null, player, tool);
+			long experienceOrbs = world.getEntitiesByClass(ExperienceOrbEntity.class, probe, entity -> true).size();
+			check("自动熔炼保留方块经验结算", experienceOrbs > 0,
+					"experience_orbs=" + experienceOrbs);
+
+			boolean blastOnlyProbe = world.getRecipeManager()
+					.getAllMatches(RecipeType.BLASTING, new SimpleInventory(new ItemStack(Items.DIRT)), world)
+					.stream()
+					.filter(recipe -> recipe instanceof AbstractCookingRecipe)
+					.map(recipe -> ((AbstractCookingRecipe) recipe).getOutput(world.getRegistryManager()))
+					.anyMatch(output -> output.isOf(Items.DIAMOND));
+			if (blastOnlyProbe) {
+				clearDropProbe(world, probe);
+				Block.dropStacks(Blocks.DIRT.getDefaultState(), world, pos, null, player, tool);
+				List<ItemEntity> blastProbeDrops = world.getEntitiesByClass(ItemEntity.class, probe, entity -> true);
+				long dirt = blastProbeDrops.stream()
+						.filter(entity -> entity.getStack().isOf(Items.DIRT))
+						.count();
+				long diamonds = blastProbeDrops.stream()
+						.filter(entity -> entity.getStack().isOf(Items.DIAMOND))
+						.count();
+				check("仅有高炉配方时不触发自动熔炼", dirt == 1 && diamonds == 0,
+						"dirt=" + dirt + " diamonds=" + diamonds);
+			}
+		} finally {
+			config.enableAutoSmelt = oldAutoSmelt;
+			player.setSneaking(oldSneaking);
+			clearDropProbe(world, probe);
+		}
+	}
+
+	private static void clearDropProbe(ServerWorld world, Box probe) {
+		world.getEntitiesByClass(ItemEntity.class, probe, entity -> true).forEach(ItemEntity::discard);
+		world.getEntitiesByClass(ExperienceOrbEntity.class, probe, entity -> true)
+				.forEach(ExperienceOrbEntity::discard);
+	}
+
+	private static void checkExtraArrowFailureIsNotRetried(ServerPlayerEntity player) {
+		ServerWorld world = player.getServerWorld();
+		BlockPos pos = player.getBlockPos().add(0, 18, 0);
+		RejectingZombieEntity target = new RejectingZombieEntity(world);
+		target.refreshPositionAndAngles(
+				pos.getX() + 2.5D, pos.getY(), pos.getZ() + 0.5D, 0.0F, 0.0F);
+		target.setAiDisabled(true);
+		target.setNoGravity(true);
+		target.setPersistent();
+		target.addCommandTag(TEST_TAG);
+		world.spawnEntity(target);
+
+		PersistentProjectileEntity arrow = net.minecraft.entity.EntityType.ARROW.create(world);
+		if (arrow == null) {
+			throw new IllegalStateException("无法创建额外箭测试实体");
+		}
+		arrow.setOwner(player);
+		arrow.setPosition(pos.getX() + 0.5D, pos.getY() + 0.9D, pos.getZ() + 0.5D);
+		arrow.setNoGravity(true);
+		arrow.setVelocity(1.0D, 0.0D, 0.0D);
+		EnchantmentEffects.markExtraHitArrow(arrow);
+		world.spawnEntity(arrow);
+		for (int i = 0; i < 8 && !arrow.isRemoved() && target.damageAttempts == 0; i++) {
+			arrow.tick();
+		}
+		check("额外箭首次伤害失败后不重试", target.damageAttempts == 1,
+				"damage_attempts=" + target.damageAttempts);
+		arrow.discard();
+		target.discard();
+	}
+
+	private static void checkRevengeWindowCleanup(ServerPlayerEntity player) {
+		Map<Object, Object> windows = staticMap(EnchantmentEffects.class, "REVENGE_WINDOW");
+		windows.clear();
+		UUID playerId = player.getUuid();
+		windows.put(playerId, player.getWorld().getTime() - 1L);
+		EnchantmentEffects.revengeMultiplier(player);
+		check("复仇过期窗口即时清理", !windows.containsKey(playerId),
+				"remaining=" + windows.size());
+
+		windows.put(playerId, player.getWorld().getTime() + 60L);
+		EnchantmentEffects.clearRevengeWindow(playerId);
+		check("复仇断线窗口清理", !windows.containsKey(playerId),
+				"remaining=" + windows.size());
+
+		windows.put(playerId, player.getWorld().getTime() + 60L);
+		windows.put(UUID.randomUUID(), player.getWorld().getTime() + 60L);
+		EnchantmentEffects.clearRevengeWindows();
+		check("复仇停服窗口清理", windows.isEmpty(),
+				"remaining=" + windows.size());
+		windows.clear();
+	}
+
+	private static void checkCrossbowMultishotSpread(ServerPlayerEntity player) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		float oldSpread = config.multishotSpreadDegrees;
+		ItemStack previous = player.getMainHandStack().copy();
+		ServerWorld world = player.getServerWorld();
+		try {
+			config.multishotSpreadDegrees = 0.0F;
+			List<PersistentProjectileEntity> parallel = shootTestCrossbow(player, world);
+			double maxParallelAngle = parallel.stream()
+					.mapToDouble(arrow -> projectileAngleFromLook(arrow, player))
+					.max()
+					.orElse(180.0D);
+			check("弩多重射击 0 度为完全平行",
+					parallel.size() == 3 && maxParallelAngle < 0.5D,
+					"arrows=" + parallel.size() + " max_angle=" + maxParallelAngle);
+			discardTestArrows(world, player);
+
+			config.multishotSpreadDegrees = 15.0F;
+			List<PersistentProjectileEntity> spread = shootTestCrossbow(player, world);
+			long center = spread.stream()
+					.filter(arrow -> projectileAngleFromLook(arrow, player) < 1.0D)
+					.count();
+			long sides = spread.stream()
+					.filter(arrow -> {
+						double angle = projectileAngleFromLook(arrow, player);
+						return angle >= 14.0D && angle <= 16.0D;
+					})
+					.count();
+			check("弩多重射击配置角作用于左右箭",
+					spread.size() == 3 && center == 1 && sides == 2,
+					"arrows=" + spread.size() + " center=" + center + " sides=" + sides);
+		} finally {
+			config.multishotSpreadDegrees = oldSpread;
+			discardTestArrows(world, player);
+			player.setStackInHand(Hand.MAIN_HAND, previous);
+		}
+	}
+
+	private static List<PersistentProjectileEntity> shootTestCrossbow(
+			ServerPlayerEntity player, ServerWorld world) {
+		discardTestArrows(world, player);
+		ItemStack crossbow = new ItemStack(Items.CROSSBOW);
+		crossbow.addEnchantment(Enchantments.MULTISHOT, 1);
+		NbtCompound nbt = crossbow.getOrCreateNbt();
+		nbt.putBoolean("Charged", true);
+		NbtList projectiles = new NbtList();
+		for (int i = 0; i < 3; i++) {
+			projectiles.add(new ItemStack(Items.ARROW).writeNbt(new NbtCompound()));
+		}
+		nbt.put("ChargedProjectiles", projectiles);
+		player.setStackInHand(Hand.MAIN_HAND, crossbow);
+		CrossbowItem.shootAll(world, player, Hand.MAIN_HAND, crossbow, 1.0F, 0.0F);
+		return world.getEntitiesByClass(
+				PersistentProjectileEntity.class,
+				player.getBoundingBox().expand(3.0D),
+				arrow -> arrow.getOwner() == player
+		);
+	}
+
+	private static double projectileAngleFromLook(PersistentProjectileEntity arrow, ServerPlayerEntity player) {
+		Vec3d velocity = arrow.getVelocity().normalize();
+		Vec3d look = player.getRotationVec(1.0F).normalize();
+		double dot = Math.max(-1.0D, Math.min(1.0D, velocity.dotProduct(look)));
+		return Math.toDegrees(Math.acos(dot));
+	}
+
+	private static void discardTestArrows(ServerWorld world, ServerPlayerEntity player) {
+		world.getEntitiesByClass(
+				PersistentProjectileEntity.class,
+				player.getBoundingBox().expand(3.0D),
+				arrow -> arrow.getOwner() == player
+		).forEach(PersistentProjectileEntity::discard);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static Map<Object, Object> staticMap(Class<?> owner, String fieldName) {
+		try {
+			Field field = owner.getDeclaredField(fieldName);
+			field.setAccessible(true);
+			Object value = field.get(null);
+			if (value instanceof Map<?, ?> map) {
+				return (Map<Object, Object>) map;
+			}
+		} catch (ReflectiveOperationException exception) {
+			log("读取静态映射失败：" + owner.getSimpleName() + "#" + fieldName + " " + exception);
+		}
+		return Map.of();
+	}
+
+	private static final class RejectingZombieEntity extends ZombieEntity {
+		private int damageAttempts;
+
+		private RejectingZombieEntity(ServerWorld world) {
+			super(net.minecraft.entity.EntityType.ZOMBIE, world);
+		}
+
+		@Override
+		public boolean damage(DamageSource source, float amount) {
+			damageAttempts++;
+			return false;
+		}
 	}
 
 	private static void checkMajruszOutgoing(ServerPlayerEntity player) {

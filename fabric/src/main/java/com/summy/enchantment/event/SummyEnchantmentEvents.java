@@ -61,9 +61,10 @@ public final class SummyEnchantmentEvents {
 			EnchantmentEffects.clearHiddenBlade(newPlayer.getUuid());
 		});
 
-		// 断线时清掉忠诚投掷冷却的登记，避免长期服务器残留已下线的 UUID
+		// 断线时清掉忠诚投掷与复仇窗口，避免长期服务器残留已下线的 UUID
 		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
 			EnchantmentEffects.clearLoyaltyCooldown(handler.getPlayer().getUuid());
+			EnchantmentEffects.clearRevengeWindow(handler.getPlayer().getUuid());
 			// 死亡之眼：断线即清空层数（重登不保留）
 			ArrowTraits.clearPlayer(handler.getPlayer());
 			// 藏剑：断线同样清空
@@ -74,6 +75,7 @@ public final class SummyEnchantmentEvents {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			ArrowTraits.clearAll();
 			EnchantmentEffects.clearHiddenBladeAll();
+			EnchantmentEffects.clearRevengeWindows();
 			ElectricArc.clearAll();
 		});
 

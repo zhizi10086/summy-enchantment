@@ -18,10 +18,8 @@ import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyArg;
-import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -115,15 +113,20 @@ public abstract class CrossbowItemMixin {
 		return creative || EnchantmentEffects.allowsEmptyAmmoCrossbow(crossbow);
 	}
 
-	/** 多重射击散射角：改成配置值（默认 10 = 原版），左右对称 */
-	@ModifyConstant(method = "shootAll", constant = @Constant(floatValue = -10.0F))
-	private static float summyEnchantment$spreadLeft(float original) {
-		return -SummyEnchantmentConfig.get().multishotSpreadDegrees;
-	}
-
-	@ModifyConstant(method = "shootAll", constant = @Constant(floatValue = 10.0F))
-	private static float summyEnchantment$spreadRight(float original) {
-		return SummyEnchantmentConfig.get().multishotSpreadDegrees;
+	/** 多重射击散射角：包装最终参数，保留中心箭的 0 和左右方向。 */
+	@ModifyArg(
+			method = "shootAll",
+			at = @At(
+					value = "INVOKE",
+					target = "Lnet/minecraft/item/CrossbowItem;shoot(Lnet/minecraft/world/World;Lnet/minecraft/entity/LivingEntity;Lnet/minecraft/util/Hand;Lnet/minecraft/item/ItemStack;Lnet/minecraft/item/ItemStack;FZFFF)V"
+			),
+			index = 9
+	)
+	private static float summyEnchantment$multishotSpread(float original) {
+		if (original == 0.0F) {
+			return 0.0F;
+		}
+		return Math.copySign(SummyEnchantmentConfig.get().multishotSpreadDegrees, original);
 	}
 
 	/** 疾矢：弩射出的箭速度 ×(1 + 每级加成 × 等级)，多重射击每支都吃 */
