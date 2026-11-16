@@ -67,9 +67,15 @@ public final class CombatFormulas {
 	 * 所以在这里改写即可覆盖所有原版来源，且不需要动原版核心逻辑。
 	 */
 	@Nullable
-	public static MobEffectInstance redirectVanillaStrength(@Nullable MobEffectInstance instance) {
-		if (!SummyEnchantmentConfig.get().enableStrengthRework) {
+	public static MobEffectInstance redirectVanillaStrength(LivingEntity entity,
+			@Nullable MobEffectInstance instance) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		if (!config.enableStrengthRework) {
 			// 总开关关闭：原版力量照原样添加，不重定向
+			return instance;
+		}
+		if (!(entity instanceof Player) && !config.applyStrengthToMobs) {
+			// 生物不参与重做：必须保留原版力量的属性修饰符。
 			return instance;
 		}
 		if (instance == null || instance.getEffect() != MobEffects.DAMAGE_BOOST) {
@@ -91,7 +97,11 @@ public final class CombatFormulas {
 
 	/** 把存档里已经存在的原版力量替换成自定义力量（实体加载时调用） */
 	public static void replaceVanillaStrength(LivingEntity entity) {
-		if (!SummyEnchantmentConfig.get().enableStrengthRework) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		if (!config.enableStrengthRework) {
+			return;
+		}
+		if (!(entity instanceof Player) && !config.applyStrengthToMobs) {
 			return;
 		}
 		if (ModStatusEffects.STRENGTH == null) {
@@ -110,6 +120,29 @@ public final class CombatFormulas {
 				legacy.isAmbient(),
 				legacy.isVisible(),
 				legacy.showIcon()
+		));
+	}
+
+	/** 生物力量开关关闭后，把已经存在的自定义力量还原为同参数的原版力量。 */
+	public static void restoreVanillaStrengthForMob(LivingEntity entity) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		if (entity.level().isClientSide || entity instanceof Player
+				|| !config.enableStrengthRework || config.applyStrengthToMobs
+				|| ModStatusEffects.STRENGTH == null) {
+			return;
+		}
+		MobEffectInstance custom = entity.getEffect(ModStatusEffects.STRENGTH);
+		if (custom == null) {
+			return;
+		}
+		entity.removeEffect(ModStatusEffects.STRENGTH);
+		entity.addEffect(new MobEffectInstance(
+				MobEffects.DAMAGE_BOOST,
+				custom.getDuration(),
+				custom.getAmplifier(),
+				custom.isAmbient(),
+				custom.isVisible(),
+				custom.showIcon()
 		));
 	}
 }

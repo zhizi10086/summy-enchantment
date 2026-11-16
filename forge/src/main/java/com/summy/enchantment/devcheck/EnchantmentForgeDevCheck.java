@@ -2,19 +2,24 @@ package com.summy.enchantment.devcheck;
 
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.ArrowTraits;
+import com.summy.enchantment.combat.CombatFormulas;
+import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.registry.ModEnchantments;
+import com.summy.enchantment.registry.ModStatusEffects;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.animal.Wolf;
 import net.minecraft.world.entity.monster.Zombie;
 import net.minecraft.world.entity.projectile.AbstractArrow;
 import net.minecraft.world.food.FoodData;
@@ -23,6 +28,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.enchantment.Enchantment;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.scores.PlayerTeam;
+import net.minecraft.world.scores.Scoreboard;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -32,6 +39,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * SE 的真实客户端开发自检。
@@ -55,6 +63,15 @@ public final class EnchantmentForgeDevCheck {
 	private static int totalClientTicks;
 	private static int checks;
 	private static boolean finished;
+	private static Zombie electricPrimary;
+	private static Zombie electricSecondary;
+	private static Zombie electricTertiary;
+	private static Zombie electricFriend;
+	private static Wolf electricPet;
+	private static Zombie soulGraceVictim;
+	private static Zombie mobStrengthVictim;
+	private static boolean mobStrengthOldRework;
+	private static boolean mobStrengthOldApply;
 
 	private EnchantmentForgeDevCheck() {
 	}
@@ -99,14 +116,20 @@ public final class EnchantmentForgeDevCheck {
 				case 20 -> prepareWorld(player);
 				case 30 -> checkCompatibilityFixtures(player);
 				case 40 -> checkLifeShield(player);
+				case 50 -> checkMobStrengthToggle(player);
+				case 55 -> checkMobStrengthAutoRestore();
 				case 60 -> checkLifeMending(player);
 				case 80 -> checkDeathsBlessing(player);
-				case 90 -> checkKubeJSEvents(player);
-				case 110 -> finish("客户端自检结束");
+				case 90 -> checkSoulGrace(player);
+				case 120 -> checkExecutionAndStartElectric(player);
+				case 140 -> checkElectricBladeResult(player);
+				case 145 -> checkSoulGraceExpired();
+				case 160 -> checkKubeJSEvents(player);
+				case 180 -> finish("客户端自检结束");
 				default -> {
 				}
 			}
-		} catch (Throwable throwable) {
+		} catch (RuntimeException | Error throwable) {
 			FAILURES.add("步骤 " + serverTick + " 异常：" + throwable);
 			log("步骤 " + serverTick + " 异常：" + throwable);
 			throwable.printStackTrace();
@@ -367,6 +390,229 @@ public final class EnchantmentForgeDevCheck {
 
 		player.setHealth(player.getMaxHealth());
 		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void checkMobStrengthToggle(ServerPlayer player) {
+		var config = com.summy.enchantment.config.SummyEnchantmentConfig.get();
+		mobStrengthOldRework = config.enableStrengthRework;
+		mobStrengthOldApply = config.applyStrengthToMobs;
+		Zombie zombie = spawnTarget(player, 100.0F, 100.0F);
+		mobStrengthVictim = zombie;
+		try {
+			config.enableStrengthRework = true;
+			config.applyStrengthToMobs = false;
+			zombie.removeAllEffects();
+			zombie.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 200, 1));
+			check("关闭生物力量时保留原版力量",
+					zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+							&& !zombie.hasEffect(ModStatusEffects.STRENGTH),
+					"vanilla=" + zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+							+ " custom=" + zombie.hasEffect(ModStatusEffects.STRENGTH));
+			check("原版力量生物不吃 SE 力量乘区",
+					Math.abs(CombatFormulas.strengthMultiplier(zombie) - 1.0F) < 0.001F,
+					"multiplier=" + CombatFormulas.strengthMultiplier(zombie));
+
+			config.applyStrengthToMobs = true;
+			zombie.removeAllEffects();
+			zombie.addEffect(new MobEffectInstance(MobEffects.DAMAGE_BOOST, 200, 1));
+			check("开启生物力量后重定向为自定义力量",
+					!zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+							&& zombie.hasEffect(ModStatusEffects.STRENGTH),
+					"vanilla=" + zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+							+ " custom=" + zombie.hasEffect(ModStatusEffects.STRENGTH));
+
+			config.applyStrengthToMobs = false;
+		} catch (Throwable throwable) {
+			config.enableStrengthRework = mobStrengthOldRework;
+			config.applyStrengthToMobs = mobStrengthOldApply;
+			zombie.discard();
+			mobStrengthVictim = null;
+			throw throwable;
+		}
+	}
+
+	private static void checkMobStrengthAutoRestore() {
+		var config = com.summy.enchantment.config.SummyEnchantmentConfig.get();
+		Zombie zombie = mobStrengthVictim;
+		try {
+			check("关闭开关后自定义力量由维护 tick 自动还原",
+					zombie != null
+							&& zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+							&& !zombie.hasEffect(ModStatusEffects.STRENGTH),
+					zombie == null ? "victim=null"
+							: "vanilla=" + zombie.hasEffect(MobEffects.DAMAGE_BOOST)
+									+ " custom=" + zombie.hasEffect(ModStatusEffects.STRENGTH));
+		} finally {
+			config.enableStrengthRework = mobStrengthOldRework;
+			config.applyStrengthToMobs = mobStrengthOldApply;
+			if (zombie != null) {
+				zombie.discard();
+			}
+			mobStrengthVictim = null;
+		}
+	}
+
+	private static void checkSoulGrace(ServerPlayer player) {
+		soulGraceVictim = spawnTarget(player, 100.0F, 1.0F);
+		soulGraceVictim.setNoGravity(true);
+		soulGraceVictim.moveTo(player.getX(), player.getY() + 20.0D, player.getZ(), 0.0F, 0.0F);
+		soulGraceVictim.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 1200, 0));
+		ItemStack chest = enchanted(Items.IRON_CHESTPLATE, ModEnchantments.SOUL_GRACE, 1);
+		chest.enchant(ModEnchantments.CALAMITY, 1);
+		soulGraceVictim.setItemSlot(EquipmentSlot.CHEST, chest);
+		EnchantmentEffects.clearSoulGraceCooldown(soulGraceVictim.getUUID());
+		soulGraceVictim.addEffect(new MobEffectInstance(MobEffects.POISON, 200, 0));
+		soulGraceVictim.invulnerableTime = 0;
+		boolean damaged = soulGraceVictim.hurt(
+				player.damageSources().playerAttack(player), 100.0F);
+		check("灵魂加护拦截致命伤害并满血复活",
+				damaged && soulGraceVictim.isAlive()
+						&& Math.abs(soulGraceVictim.getHealth() - soulGraceVictim.getMaxHealth()) < 0.01F,
+				"damaged=" + damaged + " health=" + soulGraceVictim.getHealth());
+		check("灵魂加护清除负面并挂抗性",
+				!soulGraceVictim.hasEffect(MobEffects.POISON)
+						&& soulGraceVictim.hasEffect(MobEffects.DAMAGE_RESISTANCE),
+				"poison=" + soulGraceVictim.hasEffect(MobEffects.POISON)
+						+ " resistance=" + soulGraceVictim.hasEffect(MobEffects.DAMAGE_RESISTANCE));
+		check("灵魂加护冷却为内置计时显示",
+				soulGraceVictim.hasEffect(ModStatusEffects.SOUL_GRACE),
+				"display=" + soulGraceVictim.hasEffect(ModStatusEffects.SOUL_GRACE));
+		check("灵魂加护窗口内恶咒被抑制",
+				EnchantmentEffects.isCalamitySuppressed(soulGraceVictim),
+				"suppressed=" + EnchantmentEffects.isCalamitySuppressed(soulGraceVictim));
+		soulGraceVictim.removeEffect(ModStatusEffects.SOUL_GRACE);
+		check("清除冷却显示效果后灵魂加护权威计时仍阻止重复触发",
+				!EnchantmentEffects.trySoulGrace(soulGraceVictim),
+				"secondTrigger=false");
+	}
+
+	private static void checkSoulGraceExpired() {
+		if (soulGraceVictim == null) {
+			check("灵魂加护恶咒窗口结束", false, "victim=null");
+			return;
+		}
+		check("灵魂加护 2 秒后恢复恶咒锁血",
+				!EnchantmentEffects.isCalamitySuppressed(soulGraceVictim)
+						&& Math.abs(soulGraceVictim.getHealth() - 1.0F) < 0.01F,
+				"suppressed=" + EnchantmentEffects.isCalamitySuppressed(soulGraceVictim)
+						+ " health=" + soulGraceVictim.getHealth());
+		EnchantmentEffects.clearSoulGraceCooldown(soulGraceVictim.getUUID());
+		soulGraceVictim.discard();
+		soulGraceVictim = null;
+	}
+
+	private static void checkExecutionAndStartElectric(ServerPlayer player) {
+		player.getInventory().clearContent();
+		player.removeAllEffects();
+		player.setItemSlot(EquipmentSlot.CHEST, ItemStack.EMPTY);
+		player.setHealth(10.0F);
+		player.setAbsorptionAmount(0.0F);
+		ItemStack execution = enchanted(Items.IRON_SWORD, ModEnchantments.EXECUTION, 1);
+
+		Zombie executable = spawnTarget(player, 100.0F, 10.0F);
+		boolean executed = EnchantmentEffects.tryExecuteReport(player, executable, execution);
+		check("斩杀阈值内补刀",
+				executed && (executable.isDeadOrDying() || executable.getHealth() <= 0.0F),
+				"executed=" + executed + " health=" + executable.getHealth());
+		executable.discard();
+
+		Zombie protectedTarget = spawnTarget(player, 100.0F, 10.0F);
+		protectedTarget.setInvulnerable(true);
+		protectedTarget.invulnerableTime = 7;
+		boolean blocked = EnchantmentEffects.tryExecuteReport(player, protectedTarget, execution);
+		check("斩杀被保护拒绝时返回 false 且恢复无敌帧",
+				!blocked && protectedTarget.invulnerableTime == 7,
+				"executed=" + blocked + " invulnerableTime=" + protectedTarget.invulnerableTime);
+		protectedTarget.discard();
+
+		startElectricBlade(player);
+		player.setHealth(player.getMaxHealth());
+		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void startElectricBlade(ServerPlayer player) {
+		electricPrimary = spawnTarget(player, 100.0F, 100.0F);
+		electricFriend = spawnTarget(player, 100.0F, 100.0F);
+		electricSecondary = spawnTarget(player, 100.0F, 100.0F);
+		electricTertiary = spawnTarget(player, 100.0F, 100.0F);
+		for (Zombie target : List.of(
+				electricPrimary, electricFriend, electricSecondary, electricTertiary)) {
+			target.setNoGravity(true);
+			target.addEffect(new MobEffectInstance(MobEffects.FIRE_RESISTANCE, 1200, 0));
+		}
+		electricPet = EntityType.WOLF.create(player.serverLevel());
+		if (electricPet == null) {
+			throw new IllegalStateException("无法创建测试狼");
+		}
+		electricPet.setTame(true);
+		electricPet.setOwnerUUID(player.getUUID());
+		electricPet.setNoAi(true);
+		electricPet.setNoGravity(true);
+		electricPet.setPersistenceRequired();
+		electricPet.addTag(TEST_TAG);
+		electricPet.setHealth(electricPet.getMaxHealth());
+		electricPrimary.moveTo(player.getX() + 3.0D, player.getY() + 10.0D, player.getZ(), 0.0F, 0.0F);
+		electricFriend.moveTo(player.getX() + 3.4D, player.getY() + 10.0D, player.getZ(), 0.0F, 0.0F);
+		electricPet.moveTo(player.getX() + 3.6D, player.getY() + 10.0D, player.getZ(), 0.0F, 0.0F);
+		electricSecondary.moveTo(player.getX() + 4.7D, player.getY() + 10.0D, player.getZ(), 0.0F, 0.0F);
+		electricTertiary.moveTo(player.getX() + 5.7D, player.getY() + 10.0D, player.getZ(), 0.0F, 0.0F);
+		player.serverLevel().addFreshEntity(electricPet);
+
+		Scoreboard scoreboard = player.serverLevel().getScoreboard();
+		PlayerTeam team = scoreboard.getPlayerTeam("se_devcheck_friends");
+		if (team == null) {
+			team = scoreboard.addPlayerTeam("se_devcheck_friends");
+		}
+		scoreboard.addPlayerToTeam(player.getScoreboardName(), team);
+		scoreboard.addPlayerToTeam(electricFriend.getScoreboardName(), team);
+		ItemStack weapon = enchanted(Items.IRON_SWORD, ModEnchantments.ELECTRIC_BLADE, 4);
+		ElectricArc.start(player, electricPrimary, weapon, 10.0F, Set.of(electricPrimary.getId()));
+	}
+
+	private static void checkElectricBladeResult(ServerPlayer player) {
+		float secondLost = electricSecondary == null ? 0.0F : 100.0F - electricSecondary.getHealth();
+		float thirdLost = electricTertiary == null ? 0.0F : 100.0F - electricTertiary.getHealth();
+		check("电刀跨 tick 链式衰减",
+				Math.abs(secondLost - 8.0F) < 0.05F && Math.abs(thirdLost - 6.4F) < 0.05F,
+				"second=" + secondLost + " third=" + thirdLost + " primaryHealth="
+						+ (electricPrimary == null ? "null" : electricPrimary.getHealth()));
+		check("电刀跳过队友与攻击者宠物",
+				electricFriend != null && electricPet != null
+						&& Math.abs(electricFriend.getHealth() - 100.0F) < 0.01F
+						&& Math.abs(electricPet.getHealth() - electricPet.getMaxHealth()) < 0.01F,
+				"friend=" + (electricFriend == null ? "null" : electricFriend.getHealth())
+						+ " pet=" + (electricPet == null ? "null" : electricPet.getHealth()));
+		discardElectricTargets(player.serverLevel());
+		player.setHealth(player.getMaxHealth());
+		player.setAbsorptionAmount(0.0F);
+	}
+
+	private static void discardElectricTargets(ServerLevel level) {
+		if (electricPrimary != null) {
+			electricPrimary.discard();
+		}
+		if (electricSecondary != null) {
+			electricSecondary.discard();
+		}
+		if (electricTertiary != null) {
+			electricTertiary.discard();
+		}
+		if (electricFriend != null) {
+			electricFriend.discard();
+		}
+		if (electricPet != null) {
+			electricPet.discard();
+		}
+		Scoreboard scoreboard = level.getScoreboard();
+		PlayerTeam team = scoreboard.getPlayerTeam("se_devcheck_friends");
+		if (team != null) {
+			scoreboard.removePlayerTeam(team);
+		}
+		electricPrimary = null;
+		electricSecondary = null;
+		electricTertiary = null;
+		electricFriend = null;
+		electricPet = null;
 	}
 
 	/** 只触发全部 KubeJS 只读事件；无 KubeJS 时核心桥自动短路。 */

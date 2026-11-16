@@ -84,6 +84,8 @@ public final class EnchantmentEffects {
 	private static final Map<UUID, Long> REVENGE_WINDOW = new ConcurrentHashMap<>();
 	/** 灵魂加护冷却：玩家 UUID → 可再次触发的世界 tick */
 	private static final Map<UUID, Long> SOUL_GRACE_COOLDOWN = new ConcurrentHashMap<>();
+	/** 灵魂加护复活后的恶咒抑制窗口：玩家 UUID → 抑制结束的世界 tick */
+	private static final Map<UUID, Long> SOUL_GRACE_CALAMITY_SUPPRESSION = new ConcurrentHashMap<>();
 	/** 斩杀的伤害类型 id（用于专属死亡信息） */
 	private static final ResourceLocation EXECUTION_DAMAGE_ID = SummyEnchantment.id("execution");
 	/** 生命护盾记账缓存：每个实体上一次"预期的吸收总量" */
@@ -1176,7 +1178,9 @@ public final class EnchantmentEffects {
 
 	/** 恶咒：最大生命不变，但当前生命超过 1 就压回 1（回血逻辑照常执行） */
 	public static void applyCalamity(LivingEntity entity) {
-		if (entity.isDeadOrDying() || entity.getHealth() <= 1.0F || !isCalamityActive(entity)) {
+		if (entity.level().isClientSide || entity.isDeadOrDying()
+				|| entity.getHealth() <= 1.0F || !isCalamityActive(entity)
+				|| isCalamitySuppressed(entity)) {
 			return;
 		}
 		entity.setHealth(1.0F);
@@ -1187,6 +1191,20 @@ public final class EnchantmentEffects {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		return config.enableCalamity && ModEnchantments.CALAMITY != null
 				&& chestLevel(entity, ModEnchantments.CALAMITY) > 0;
+	}
+
+	/** 灵魂加护复活后的 40 tick 内，恶咒不执行压血。 */
+	public static boolean isCalamitySuppressed(LivingEntity entity) {
+		UUID id = entity.getUUID();
+		Long until = SOUL_GRACE_CALAMITY_SUPPRESSION.get(id);
+		if (until == null) {
+			return false;
+		}
+		if (entity.level().getGameTime() >= until) {
+			SOUL_GRACE_CALAMITY_SUPPRESSION.remove(id);
+			return false;
+		}
+		return true;
 	}
 
 	// ==================== 穿刺（基岩版判定） ====================
@@ -1383,9 +1401,14 @@ public final class EnchantmentEffects {
 		}
 		DamageSource source = executionDamageSource(attacker, victim);
 		// 清掉受击冷却，否则这一击会被无敌帧吞掉
+		int previousInvulnerableTime = victim.invulnerableTime;
 		victim.invulnerableTime = 0;
-		victim.hurt(source, (victim.getHealth() + victim.getAbsorptionAmount()) * 5.0F + 10.0F);
-		return true;
+		boolean landed = victim.hurt(source,
+				(victim.getHealth() + victim.getAbsorptionAmount()) * 5.0F + 10.0F);
+		if (!landed) {
+			victim.invulnerableTime = previousInvulnerableTime;
+		}
+		return landed;
 	}
 
 	/** 斩杀的伤害源：优先用自定义伤害类型，取不到时退回普通攻击来源 */
@@ -1545,6 +1568,7 @@ public final class EnchantmentEffects {
 			return false;
 		}
 		SOUL_GRACE_COOLDOWN.put(entity.getUUID(), now + (long) config.soulGraceCooldownSeconds * 20L);
+		SOUL_GRACE_CALAMITY_SUPPRESSION.put(entity.getUUID(), now + 40L);
 
 		entity.setHealth(entity.getMaxHealth());
 		clearNegativeEffects(entity);
@@ -1605,6 +1629,7 @@ public final class EnchantmentEffects {
 	public static void clearSoulGraceCooldown(UUID playerId) {
 		if (playerId != null) {
 			SOUL_GRACE_COOLDOWN.remove(playerId);
+			SOUL_GRACE_CALAMITY_SUPPRESSION.remove(playerId);
 		}
 	}
 

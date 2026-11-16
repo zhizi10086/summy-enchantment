@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.OwnableEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
@@ -152,13 +153,14 @@ public final class ElectricArc {
 			// 攻击者离线/死亡：整条链结束（否则归属与武器等级都不再可靠）
 			return "attacker_offline";
 		}
-		LivingEntity target = findNextTarget(pending);
+		LivingEntity target = findNextTarget(pending, attacker);
 		if (target == null) {
 			return "no_target";
 		}
-		// 每段基数：上一段金额 × 倍率（默认 0.8）
+		// 每段基数：主命中金额 × 倍率的段数次方（默认 0.8）
 		float ratio = Math.max(0.0F, config.electricBladeDamageRatio);
-		float amount = pending.amount * ratio;
+		float amount = pending.amount
+				* (float) Math.pow(ratio, pending.completedSegments + 1);
 		if (amount <= 0.0F) {
 			return "no_target";
 		}
@@ -198,13 +200,14 @@ public final class ElectricArc {
 	}
 
 	/** 以上一段目标为圆心找半径内最近、且链上没打过的活体（排除攻击者本人） */
-	private static LivingEntity findNextTarget(Pending pending) {
+	private static LivingEntity findNextTarget(Pending pending, ServerPlayer attacker) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		double radius = Math.max(0.5D, config.electricBladeRadius);
 		AABB box = new AABB(pending.from, pending.from).inflate(radius);
 		List<LivingEntity> candidates = pending.level.getEntitiesOfClass(LivingEntity.class, box,
 				entity -> entity.isAlive() && !pending.hitIds.contains(entity.getId())
-						&& !entity.getUUID().equals(pending.attackerId));
+						&& !entity.getUUID().equals(pending.attackerId)
+						&& !isFriendlyTarget(entity, attacker));
 		LivingEntity nearest = null;
 		double nearestDistance = Double.MAX_VALUE;
 		for (LivingEntity candidate : candidates) {
@@ -215,6 +218,17 @@ public final class ElectricArc {
 			}
 		}
 		return nearest;
+	}
+
+	/** 不增加视线限制，只排除队伍、已驯服宠物及攻击者拥有的 Ownable 实体。 */
+	private static boolean isFriendlyTarget(LivingEntity candidate, ServerPlayer attacker) {
+		if (candidate.isAlliedTo(attacker)) {
+			return true;
+		}
+		if (candidate instanceof OwnableEntity ownable) {
+			return attacker.getUUID().equals(ownable.getOwnerUUID());
+		}
+		return false;
 	}
 
 	/** 连线电火花 + 命中点小爆发（服务端广播，附近玩家都看得到） */

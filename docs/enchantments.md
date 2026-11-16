@@ -79,7 +79,7 @@
 - **获取方式**：铁砧 / 随机战利品（宝藏不进附魔台）/ 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_execution`（开）、`execution_threshold`（0.15）（均服务端作用域）。
-- **边界与实现位置**：补刀使用**自定义伤害类型** `summy_enchantment:execution`（注册在 `data/summy_enchantment/damage_type/execution.json`，同时记录攻击者），因此有专属死亡信息；取不到该伤害类型时退回原版 `playerAttack`。SR「强力斩击」吃斩杀。实现：`EnchantmentEffects.tryExecuteReport` + 各近战入口。
+- **边界与实现位置**：补刀使用**自定义伤害类型** `summy_enchantment:execution`（注册在 `data/summy_enchantment/damage_type/execution.json`，同时记录攻击者），因此有专属死亡信息；取不到该伤害类型时退回原版 `playerAttack`。只有实际受击返回成功时才报告斩杀；被伤害事件、Boss 规则或实体保护拒绝时返回失败，并恢复补刀前的无敌帧。SR「强力斩击」吃斩杀。实现：`EnchantmentEffects.tryExecuteReport` + 各近战入口。
 
 ### 嗜血（`lifesteal`）
 
@@ -187,7 +187,7 @@
 - **获取方式**：铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_soul_grace`（开）、`soul_grace_cooldown_seconds`（180）（均服务端作用域）。
-- **边界与实现位置**：免死瞬间固定播放**原版图腾音效 + 图腾粒子爆发**（不加开关）；冷却以**服务端计时**为权威，效果栏里的"灵魂加护 冷却中"图标（状态效果 id 与附魔同名 `summy_enchantment:soul_grace`）只作显示，喝牛奶或 `/effect clear` 最多 1 秒后自动回来且**冷却不被重置**；与恶咒同时穿戴时复活后血量为 1。实现：`SummyEnchantmentEvents`（ALLOW_DEATH）+ `EnchantmentEffects.trySoulGrace` / `syncSoulGraceCooldown` + `ModStatusEffects`。
+- **边界与实现位置**：免死瞬间固定播放**原版图腾音效 + 图腾粒子爆发**（不加开关）；冷却以**服务端计时**为权威，效果栏里的"灵魂加护 冷却中"图标（状态效果 id 与附魔同名 `summy_enchantment:soul_grace`）只作显示，喝牛奶、`/effect clear` 或重登都不会重置权威冷却。与恶咒同时穿戴时，复活后的 **40 tick（2 秒）内保持满血**，窗口结束后才恢复恶咒锁血。实现：`SummyEnchantmentEvents`（ALLOW_DEATH）+ `EnchantmentEffects.trySoulGrace` / `syncSoulGraceCooldown` + `ModStatusEffects`。
 
 ### 恶咒（`calamity`）
 
@@ -196,7 +196,7 @@
 - **获取方式**：**可以出现在附魔台**（附魔台不排除诅咒）/ 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_calamity`（开，服务端）。
-- **边界与实现位置**：锁血放在每 tick 的末尾而非伤害流程，因此"回血类联动"（例如生命护盾累积）依然成立；与灵魂加护同穿时复活后为 1 血。实现：`LivingEntityMixin`（`setHealth` 裁剪 + tick 兜底）+ `EnchantmentEffects.isCalamityActive`。
+- **边界与实现位置**：锁血放在每 tick 的末尾而非伤害流程，因此"回血类联动"（例如生命护盾累积）依然成立；与灵魂加护同穿时，灵魂加护复活后的前 40 tick 由服务端抑制恶咒，随后恢复为 1 血。客户端血量以服务端同步值为准，不独立执行恶咒裁剪。实现：`LivingEntityMixin`（`setHealth` 裁剪 + tick 兜底）+ `EnchantmentEffects.isCalamityActive`。
 
 ### 灵动步伐（`nimble_steps`）
 
@@ -338,7 +338,7 @@
 - **获取方式**：附魔台 / 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_electric_blade`（开）、`electric_blade_radius`（5.0）、`electric_blade_damage_ratio`（0.8）、`electric_blade_delay_ticks`（2）（均服务端作用域）。
-- **边界与实现位置**：**只对玩家的左键近战主命中生效**（生物带该附魔不弹射；SR 斩击与投掷不触发）；**段数严格等于等级**（内部每段递减，1~4 级就是 1~4 段，不会续下去）；选目标是"以**上一段命中点**为圆心、半径 5 格内**最近且本次链未命中过**的活体"（排除攻击者本人），找不到就结束；**同一刀已经伤害过的目标都会被排除**——启动时会把"主命中 + 横扫受害者"一起写进排除集合，所以一次挥砍不会对同一目标打两遍；**基数取攻击侧金额**（含力量/复仇/藏剑加成，**不含**护甲减免、目标受伤倍率与魔剑追加），每段照常吃目标侧倍率与一层造成侧；**每段先清目标无敌帧**再打出，伤害源用原版 `playerAttack`；**每段各结算一次魔剑与嗜血**（定稿），但**不**触发斩杀、不出其不意、也不会再触发电刀；段间延迟 0.1 秒（默认 2 tick）由服务端队列推进，攻击者离线即终止；表现是**从上一段目标到本段目标**沿线电火花（`ELECTRIC_SPARK`）+ 命中点小爆发，服务端广播。实现：`PlayerEntityMixin`（在 `attack` HEAD/中段收集"本次挥砍伤害过的实体"与主命中金额，TAIL 启动，保证横扫也算进去）+ `combat/ElectricArc`（队列）+ `SummyEnchantmentEvents`（每 tick 推进）。
+- **边界与实现位置**：**只对玩家的左键近战主命中生效**（生物带该附魔不弹射；SR 斩击与投掷不触发）；**段数严格等于等级**（内部每段递减，1~4 级就是 1~4 段，不会续下去）；选目标是"以**上一段命中点**为圆心、半径 5 格内**最近且本次链未命中过**的活体"，排除攻击者本人、原版队伍友军、攻击者拥有的 `Ownable` 实体与已驯服宠物，找不到就结束；筛选不要求视线，隔墙的合法敌人仍可能被选中；**同一刀已经伤害过的目标都会被排除**——启动时会把"主命中 + 横扫受害者"一起写进排除集合，所以一次挥砍不会对同一目标打两遍；**基数取攻击侧金额**（含力量/复仇/藏剑加成，**不含**护甲减免、目标受伤倍率与魔剑追加），每段照常吃目标侧倍率与一层造成侧；**每段先清目标无敌帧**再打出，伤害源用原版 `playerAttack`；**每段各结算一次魔剑与嗜血**（定稿），但**不**触发斩杀、不出其不意、也不会再触发电刀；段间延迟 0.1 秒（默认 2 tick）由服务端队列推进，攻击者离线即终止；表现是**从上一段目标到本段目标**沿线电火花（`ELECTRIC_SPARK`）+ 命中点小爆发，服务端广播。实现：`PlayerEntityMixin`（在 `attack` HEAD/中段收集"本次挥砍伤害过的实体"与主命中金额，TAIL 启动，保证横扫也算进去）+ `combat/ElectricArc`（队列）+ `SummyEnchantmentEvents`（每 tick 推进）。
 - **叠加口径提醒**：4 级电刀 + 魔剑 5 级时，四段合计的魔剑追加 ≈ 主命中金额 × (0.8+0.64+0.512+0.41) × 0.08 × 5 ≈ **主命中金额的 94%**（嗜血同理按 ×0.19×等级 回血）；这是"每段各结算一次"的既定口径。
 
 ## 机制附录
@@ -354,7 +354,7 @@
 ### 锋利Plus 与力量Plus（核心机制组）
 
 - **锋利Plus**：见上表同名附魔小节（`enable_custom_sharpness`、`sharpness_damage_per_level`，隐藏项 `sharpness_max_level`）。
-- **力量Plus**：`enable_strength_rework`（开）、`strength_multiplier_per_level`（0.5）——把原版力量药水重做成**乘算增伤**（每级 +50%），原版力量效果会被自动替换成新实现（旧存档/旧药水在实体加载时也会被替换）；`apply_strength_to_mobs`（开）决定生物是否同样享受。
+- **力量Plus**：`enable_strength_rework`（开）、`strength_multiplier_per_level`（0.5）——把原版力量药水重做成**乘算增伤**（每级 +50%），原版力量效果会被自动替换成新实现（旧存档/旧药水在实体加载时也会被替换）；`apply_strength_to_mobs`（开）控制生物是否参与该重定向。关闭时，生物新获得的力量保持原版；已经存在的 SE 自定义力量会在下一次实体维护 tick 还原为同级、剩余时长相同的原版力量。玩家路径不受此开关影响。
 
 ### 原版附魔调整（原版改动组）
 

@@ -93,7 +93,6 @@ public final class SummyEnchantmentEvents {
 	private static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
 		if (event.getEntity() instanceof ServerPlayer player) {
 			EnchantmentEffects.clearLoyaltyCooldown(player.getUUID());
-			EnchantmentEffects.clearSoulGraceCooldown(player.getUUID());
 			ParticlePreferences.clear(player.getUUID());
 			// 死亡之眼：断线即清空层数（重登不保留）
 			ArrowTraits.clearPlayer(player);
