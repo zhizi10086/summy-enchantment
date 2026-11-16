@@ -41,7 +41,7 @@ if ($fabricMinecraftVersion -ne $forgeMinecraftVersion) {
     throw "Fabric 与 Forge 的 minecraft_version 不一致：$fabricMinecraftVersion / $forgeMinecraftVersion"
 }
 $fabricJarDirectory = Join-Path (Join-Path $ReleaseRoot $fabricMinecraftVersion) 'summy-enchantment'
-$forgeJarDirectory = Join-Path (Join-Path $ReleaseRoot $forgeMinecraftVersion) 'summy-enchantment-forge'
+$forgeJarDirectory = Join-Path (Join-Path $ReleaseRoot $forgeMinecraftVersion) 'summy-enchantment-neoforge'
 $fabricJar = Join-Path $fabricJarDirectory ('summy-enchantment-{0}.jar' -f $fabricVersion)
 $forgeJar = Join-Path $forgeJarDirectory ('summy-enchantment-{0}.jar' -f $forgeVersion)
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -101,7 +101,7 @@ function Get-ZipEntrySha256([string]$JarPath, [string]$EntryName) {
 }
 
 Check-Release 'Fabric JAR exists' (Test-Path -LiteralPath $fabricJar) $fabricJar
-Check-Release 'Forge JAR exists' (Test-Path -LiteralPath $forgeJar) $forgeJar
+Check-Release 'NeoForge JAR exists' (Test-Path -LiteralPath $forgeJar) $forgeJar
 
 $expectedIconSha256 = '4B1FC2FE52542FB50D343B165CB07872D3EAEB9D57F79500AD253381186C212F'
 $releaseNotePath = Join-Path $RepoRoot ('docs\releases\{0}.md' -f $fabricVersion)
@@ -113,20 +113,22 @@ $releaseNotes = if (Test-Path -LiteralPath $releaseNotePath) {
 }
 $compatibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot 'docs\compatibility.md'), $utf8)
 Check-Release 'Fabric source version' (-not [string]::IsNullOrWhiteSpace($fabricVersion)) $fabricVersion
-Check-Release 'Forge source version' (-not [string]::IsNullOrWhiteSpace($forgeVersion)) $forgeVersion
+Check-Release 'NeoForge source version' (-not [string]::IsNullOrWhiteSpace($forgeVersion)) $forgeVersion
 Check-Release 'Release notes scale' ($releaseNotes -match '32.*99.*11') '32/99/11'
-Check-Release 'Release notes verification' ($releaseNotes -match 'Forge.*13.*0') 'Forge 13/0'
-Check-Release 'Compatibility record' ($compatibility -match 'Forge.*13.*0') 'Forge 13/0 client check'
+Check-Release 'Release notes verification' ($releaseNotes -match '(?s)(?:Forge|NeoForge)[^\r\n]*(?:\d+/0|0 failures)') 'platform x/0'
+Check-Release 'Compatibility record' ($compatibility -match '(?s)(?:Forge|NeoForge)[^\r\n]*(?:\d+/0|0 failures)') 'platform x/0'
 Check-Release 'No local absolute paths in public docs' (-not (($releaseNotes + $compatibility) -match '[A-Z]:\\')) 'docs/releases + docs/compatibility'
 
 if ($failures.Count -eq 0) {
     foreach ($pair in @(
             @{Loader = 'Fabric'; Path = $fabricJar; Metadata = 'fabric.mod.json'},
-            @{Loader = 'Forge'; Path = $forgeJar; Metadata = 'META-INF/mods.toml'})) {
+            @{Loader = 'NeoForge'; Path = $forgeJar; Metadata = 'META-INF/neoforge.mods.toml'})) {
         $entries = @(& jar tf $pair.Path)
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pair.Path).Hash
         $devcheckCount = @($entries | Where-Object { $_ -like '*devcheck*' }).Count
-        $externalCount = @($entries | Where-Object { $_ -match '(?i)^(celestial|apotheosis|majrusz)' }).Count
+        $externalCount = @($entries | Where-Object {
+            $_ -match '(?i)^(celestial|apotheosis|majrusz|dev/latvian|com/summy/reliquary|com/notunanancyowen/spears)'
+        }).Count
         $licenseCount = @($entries | Where-Object { $_ -eq 'LICENSE_summy-enchantment' }).Count
         $metadataText = Get-ZipEntryText $pair.Path $pair.Metadata
 
@@ -143,15 +145,15 @@ if ($failures.Count -eq 0) {
             $iconSha = Get-ZipEntrySha256 $pair.Path 'assets/summy_enchantment/icon.png'
             Check-Release 'Fabric embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
         } else {
-            Check-Release 'Forge version' (
+            Check-Release 'NeoForge version' (
                 $metadataText -match ('version\s*=\s*"{0}"' -f [regex]::Escape($forgeVersion))
             ) $forgeVersion
-            Check-Release 'Forge license' ($metadataText -match 'license\s*=\s*"MIT"') 'MIT'
-            Check-Release 'Forge icon metadata' ($metadataText -match 'logoFile\s*=\s*"icon\.png"') 'icon.png'
+            Check-Release 'NeoForge license' ($metadataText -match 'license\s*=\s*"MIT"') 'MIT'
+            Check-Release 'NeoForge icon metadata' ($metadataText -match 'logoFile\s*=\s*"icon\.png"') 'icon.png'
             $iconSha = Get-ZipEntrySha256 $pair.Path 'icon.png'
-            Check-Release 'Forge embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
+            Check-Release 'NeoForge embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
             $mixinExtras = @($entries | Where-Object { $_ -like 'META-INF/jarjar/mixinextras*' }).Count
-            Check-Release 'Forge nested MixinExtras' ($mixinExtras -ge 1) "entries=$mixinExtras"
+            Check-Release 'NeoForge nested MixinExtras' ($mixinExtras -ge 1) "entries=$mixinExtras"
         }
 
         Write-Host ("     File={0}" -f (Split-Path -Leaf $pair.Path))

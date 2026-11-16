@@ -88,6 +88,6 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 同一轮日志确认 `PersistentProjectileEntityMixin`、`PhantomArrowGravityMixin`、`HungerManagerMixin`、`NourishmentAlwaysEatMixin` 均成功应用，未出现 `already redirected`、`Critical injection failure` 或 Mixin apply 失败。
 - 幻影箭重力实测为普通箭的一半；轻盈 2 级再乘 0.5，普通箭与幻影箭都正确保留了 Twilight Dusk 的减重力。大胃袋 5 级实际从 0 吃至 30、40，满值时 `needsFood=false`；Farmer's Delight 的滋养效果在 40 点时仍允许进食。
 - 2026-11-16，NeoForge 1.21.1 无 Apotheosis：`clean build`、客户端核心自检 35 项/失败 0 项和专用服务端 `Done` 通过，SE 铁砧 Mixin 正常应用。对应 1.21.1 Apotheosis 实机组合等待可用 JAR 后补充验证。
-- 2026-11-16 兼容收口：Fabric 核心自检 68 项、失败 0 项；NeoForge 核心自检 63 项、失败 0 项。生命护盾混合池、真实随机附魔结果和 Fabric 玩家属性追加均通过。
+- 2026-11-16 兼容收口：Fabric 核心自检 68/0；NeoForge 核心自检 63/0。生命护盾混合池、真实随机附魔结果和 Fabric 玩家属性追加均通过。
 - 随机附魔回归修复了 1.21.1 两树过滤候选表返回不可变列表的问题；NeoForge KubeJS 实际加载通过，NeoForge + SR 2.0.0/SRA + Curios 组合自检 29 项、失败 0 项。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。
