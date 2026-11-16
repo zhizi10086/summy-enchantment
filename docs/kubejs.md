@@ -1,6 +1,6 @@
 # Summy Enchantment KubeJS API
 
-> 适用版本：1.4.2+1.21.1 NeoForge。
+> 适用版本：1.4.3+1.21.1 NeoForge。
 > KubeJS 是 NeoForge 可选依赖；未安装时 SE 不加载任何 KubeJS 类，玩法与没有安装 KubeJS 时一致。
 > Minecraft 1.21.1 Fabric 当前没有 KubeJS 上游版本，因此 Fabric 产物不包含 KubeJS 插件。
 

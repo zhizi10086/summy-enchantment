@@ -152,8 +152,7 @@ if ($failures.Count -eq 0) {
             Check-Release 'NeoForge icon metadata' ($metadataText -match 'logoFile\s*=\s*"icon\.png"') 'icon.png'
             $iconSha = Get-ZipEntrySha256 $pair.Path 'icon.png'
             Check-Release 'NeoForge embedded icon' ($iconSha -eq $expectedIconSha256) $iconSha
-            $mixinExtras = @($entries | Where-Object { $_ -like 'META-INF/jarjar/mixinextras*' }).Count
-            Check-Release 'NeoForge nested MixinExtras' ($mixinExtras -ge 1) "entries=$mixinExtras"
+            # NeoForge 在运行时提供 MixinExtras，不需要把实现嵌套进模组 JAR。
         }
 
         Write-Host ("     File={0}" -f (Split-Path -Leaf $pair.Path))

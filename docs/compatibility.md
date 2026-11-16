@@ -1,6 +1,6 @@
 # 兼容策略与独立实现记录
 
-> 适用版本：Summy Enchantment 1.4.2+1.21.1（Fabric / NeoForge）
+> 适用版本：Summy Enchantment 1.4.3+1.21.1（Fabric / NeoForge）
 
 > Minecraft 1.21.1 使用 Fabric Loader 0.20.1 + Fabric API 0.116.18+1.21.1，或 NeoForge 21.1.265。
 > KubeJS 1.21.1 仅支持 NeoForge；Fabric 产物明确不包含 KubeJS 插件。

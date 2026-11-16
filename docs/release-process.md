@@ -66,7 +66,7 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 - 标签：`v<版本>`，例如 `v1.3.10`。
 - 标题：`Summy Enchantment <版本>`。
 - 正文：使用 `docs/releases/<版本>.md`。
-- 资产：Fabric 与 NeoForge 两个正式 JAR，共用 `v1.4.2+1.21.1` 标签。
+- 资产：Fabric 与 NeoForge 两个正式 JAR，共用 `v1.4.3+1.21.1` 标签。
 - 发布通道：`Release`，设为 Latest。
 - 发布后核对资产大小、SHA-256、下载链接与正文渲染。
 
@@ -74,8 +74,8 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 
 1.21.1 的两份材料分别归档到：
 
-- `MC mod/JAR/1.21.1/summy-enchantment/_release-1.4.2+1.21.1/`
-- `MC mod/JAR/1.21.1/summy-enchantment-neoforge/_release-1.4.2+1.21.1/`
+- `MC mod/JAR/1.21.1/summy-enchantment/_release-1.4.3+1.21.1/`
+- `MC mod/JAR/1.21.1/summy-enchantment-neoforge/_release-1.4.3+1.21.1/`
 
 - 双加载器正式 JAR
 - `Release 说明.md`

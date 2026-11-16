@@ -19,13 +19,21 @@ Minecraft **1.21.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 | Mod Menu（可选） | 11.0.5，仅编译期依赖；装了才有图形配置页 |
 | Java | 21 |
 
+## 1.4.3+1.21.1 兼容收口版本
+
+- Fabric 玩家属性改为构造末尾按需追加 `life_shield`，不再整表替换默认属性。
+- 自动熔炼改为包装原版掉落列表，保留方块经验与平台回调；额外箭首次伤害失败后不再重复触发伤害事件。
+- 生物力量开关、灵魂加护/恶咒、斩杀结果、电刀友军过滤、复仇窗口清理和随机附魔可变候选列表按 1.4.3 契约修正。
+- Fabric 核心自检 68/0；Backported Spears 1.21.1 专项 9/0；专用服务端正常到达 `Done`。
+- Fabric 正式产物为 `summy-enchantment-1.4.3+1.21.1.jar`；协议仍为 9，附魔仍 32、配置仍 99/11 组。
+
 ## 1.4.2+1.21.1 平台版本
 
 - Fabric 正式产物为 `summy-enchantment-1.4.2+1.21.1.jar`。
 - Backported Spears 1.21.1 专项为 9 项、失败 0 项。
 - Fabric 与 NeoForge 共用标签 `v1.4.2+1.21.1`，网络协议为 9。
 
-> 以下 1.4.2 及更早条目均为 Minecraft 1.20.1 历史记录，保留用于追溯。
+> 以下 1.4.2 及更早的通用条目均为 Minecraft 1.20.1 历史记录，保留用于追溯。
 
 ## 1.4.2 矛兼容：Backported Spears 1.5.0+
 
@@ -33,7 +41,7 @@ Minecraft **1.21.1** / Fabric 的附魔与机制改造模组：重做锋利与�
 - 1.5.0+ 不再二次修正上游已修复的基础伤害，但仍恢复 `meleeSettled`、魔剑、嗜血与左键力量Plus。
 - 1.5.0+ 左键保持 `M × (基础伤害 + 冷却 × 附魔伤害)`，右键保持上游 `基础 + 附魔 + 速度`，不对右键追加力量Plus。
 - 专项自检使用 `gradlew verifySpearSelfTest -Pdevcheck -PdevcheckMode=spear "-PspearVersion=1.5.0" "-PdevcheckWorldDir=<世界目录>"`。1.4.7 与 1.5.0 各跑一次。
-- 附魔仍 32、配置仍 99/11 组、协议仍 9；产物：`summy-enchantment-1.4.2.jar`（1.4.1 保留）。
+- 附魔仍 32、配置仍 99/11 组、协议仍 9；历史产物：`summy-enchantment-1.4.2.jar`（1.4.1 保留）。
 
 ## 1.4.1 兼容性修复：Twilight Dusk 重力与饥饿容量
 
@@ -360,7 +368,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.2+1.21.1.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment/`。
+产物：`build/libs/summy-enchantment-1.4.3+1.21.1.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment/`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 >
