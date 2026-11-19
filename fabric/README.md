@@ -360,7 +360,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.3.jar`，构建结束后会自动复制到 `MC mod/JAR/1.20.1/summy-enchantment/`。
+构建产物保存在工程目录。Fabric 使用 `build/libs/summy-enchantment-1.4.3.jar`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 >

@@ -35,12 +35,14 @@ cd ..\forge
 ## 4. 正式包检查
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
+powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1 `
+  -FabricJar 'fabric\build\libs\summy-enchantment-1.4.3.jar' `
+  -ForgeJar 'forge\build\reobfJarJar\output.jar'
 ```
 
 检查项：
 
-- 两个正式 JAR 存在且文件名正确。
+- 两个显式指定的候选 JAR 存在、加载器和版本正确。
 - 版本元数据与目标版本一致。
 - 不含 `com/summy/enchantment/devcheck/**`。
 - Fabric 包含 `fabric.mod.json`，Forge 包含 `META-INF/mods.toml`。
@@ -48,6 +50,8 @@ powershell -ExecutionPolicy Bypass -File scripts\verify-release.ps1
 - Forge 最终 `reobfJarJar` 包含嵌套 MixinExtras 及其许可证。
 - 不包含 Celestial、Apotheosis、Majrusz 的包路径。
 - 输出 SHA-256 供 Release 和平台版本页使用。
+
+普通构建只写工程目录。校验通过后再按发布文件名归档；目标同名异哈希时先保留旧包到冲突归档。
 
 ## 5. 服务端与部署冒烟
 

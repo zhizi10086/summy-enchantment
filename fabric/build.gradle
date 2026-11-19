@@ -125,18 +125,6 @@ tasks.named('sourcesJar') {
     }
 }
 
-// 构建结束后把 remap 后的 jar 复制到 MC mod/JAR 统一发布目录
-tasks.named('build') {
-    doLast {
-        def releaseDir = file("../../../JAR/${project.minecraft_version}/summy-enchantment")
-        releaseDir.mkdirs()
-        copy {
-            from tasks.named('remapJar').get().archiveFile
-            into releaseDir
-        }
-    }
-}
-
 // 自检只由显式参数打开；专用世界由测试脚本准备，脚本结束会自行退出客户端。
 tasks.named('runClient') {
     if (project.hasProperty('devcheck')) {

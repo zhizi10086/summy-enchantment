@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = '',
-    [string]$ReleaseRoot = ''
+    [string]$FabricJar = '',
+    [string]$ForgeJar = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,8 +13,13 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
     }
     $RepoRoot = Split-Path -Parent $scriptRoot
 }
-if ([string]::IsNullOrWhiteSpace($ReleaseRoot)) {
-    $ReleaseRoot = Join-Path $RepoRoot '..\..\JAR'
+if ([string]::IsNullOrWhiteSpace($FabricJar) -or [string]::IsNullOrWhiteSpace($ForgeJar)) {
+    throw 'Specify this build''s candidates with -FabricJar and -ForgeJar.'
+}
+$fabricJar = (Resolve-Path -LiteralPath $FabricJar).ProviderPath
+$forgeJar = (Resolve-Path -LiteralPath $ForgeJar).ProviderPath
+if ($fabricJar -eq $forgeJar) {
+    throw 'Provide a distinct candidate JAR for each loader.'
 }
 
 $utf8 = [System.Text.Encoding]::UTF8
@@ -40,10 +46,6 @@ $forgeMinecraftVersion = $Matches[1].Trim()
 if ($fabricMinecraftVersion -ne $forgeMinecraftVersion) {
     throw "Fabric 与 Forge 的 minecraft_version 不一致：$fabricMinecraftVersion / $forgeMinecraftVersion"
 }
-$fabricJarDirectory = Join-Path (Join-Path $ReleaseRoot $fabricMinecraftVersion) 'summy-enchantment'
-$forgeJarDirectory = Join-Path (Join-Path $ReleaseRoot $forgeMinecraftVersion) 'summy-enchantment-forge'
-$fabricJar = Join-Path $fabricJarDirectory ('summy-enchantment-{0}.jar' -f $fabricVersion)
-$forgeJar = Join-Path $forgeJarDirectory ('summy-enchantment-{0}.jar' -f $forgeVersion)
 $failures = [System.Collections.Generic.List[string]]::new()
 $checks = 0
 
