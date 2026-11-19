@@ -7,7 +7,7 @@ Minecraft **1.21.1** 的附魔与机制改造模组：重做锋利与力量、�
 [Backported Spears](https://www.mcmod.cn/class/23213.html)。作者：**Summy**。
 
 本仓库同时维护 Fabric 与 NeoForge 两份独立源码。Fabric 使用 Yarn 映射，NeoForge 使用
-Mojang 官方映射；两树功能一致。
+Mojang 官方映射。核心附魔和玩法在两端提供。
 
 | 目录 | 平台 | 版本 |
 | --- | --- | --- |
@@ -16,7 +16,8 @@ Mojang 官方映射；两树功能一致。
 
 ## 兼容
 
-- KubeJS 仅作为 NeoForge 可选兼容；Minecraft 1.21.1 Fabric 当前没有 KubeJS 上游版本。
+- NeoForge 可选联动包括 SR `2.0.0-neoforge+`、SRA `0.1.4-neoforge`、KubeJS 与 Apothic Enchanting。SR `2.0.0-neoforge` 和 `2.0.1-neoforge` 已与 SRA `0.1.4-neoforge` 分别实测。
+- Fabric 可选联动包括 Backported Spears 和 Mod Menu。
 - Backported Spears、SR、SRA、BAT、Rhino 和 KubeJS 都不会打包进 SE JAR。
 - Fabric 需要 Fabric API；NeoForge 无额外必需前置。
 - 客户端与服务端必须使用相同 SE 版本，网络协议为 9。
