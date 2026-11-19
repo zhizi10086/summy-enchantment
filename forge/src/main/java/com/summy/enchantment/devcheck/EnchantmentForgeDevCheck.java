@@ -6,7 +6,9 @@ import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
-import com.summy.enchantment.compat.SummyReliquaryCompat;
+import com.summy.enchantment.combat.ExperienceMath;
+import com.summy.enchantment.compat.AnvilCostCompat;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.EnchantmentRef;
@@ -132,6 +134,14 @@ public final class EnchantmentForgeDevCheck {
 				}
 				return;
 			}
+			if ("anvilcompat".equals(MODE)) {
+				if (serverTick == 20) {
+					checkApothicAnvil(player);
+					checkLifeMending(player);
+					finish("NeoForge 神化铁砧与生命修补自检结束");
+				}
+				return;
+			}
 			if ("kubejs".equals(MODE)) {
 				if (serverTick == 40) {
 					checkKubeJSEvents(player);
@@ -150,7 +160,10 @@ public final class EnchantmentForgeDevCheck {
 					case 50 -> checkMobStrengthToggle(player);
 					case 55 -> checkMobStrengthAutoRestore();
 					case 60 -> checkLifeShield(player);
-					case 62 -> checkEnchantmentCompatibilityMatrix(player);
+					case 62 -> {
+						checkEnchantmentCompatibilityMatrix(player);
+						checkEnchantmentEntryPoints(player);
+					}
 					case 80 -> checkLifeMending(player);
 					case 100 -> checkDeathsBlessing(player);
 					case 110 -> checkSoulGrace(player);
@@ -171,7 +184,10 @@ public final class EnchantmentForgeDevCheck {
 				case 26 -> checkRevengeWindowCleanup(player);
 				case 30 -> checkCompatibilityFixtures(player);
 				case 40 -> checkLifeShield(player);
-				case 62 -> checkEnchantmentCompatibilityMatrix(player);
+				case 62 -> {
+					checkEnchantmentCompatibilityMatrix(player);
+					checkEnchantmentEntryPoints(player);
+				}
 				case 60 -> checkLifeMending(player);
 				case 80 -> checkDeathsBlessing(player);
 				case 90 -> checkKubeJSEvents(player);
@@ -684,6 +700,79 @@ public final class EnchantmentForgeDevCheck {
 		}
 	}
 
+	/** 使用真实铁砧菜单和原版命令验证相同的配对规则。 */
+	private static void checkEnchantmentEntryPoints(ServerPlayer player) {
+		var registry = player.serverLevel().registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+		var infinity = registry.getHolderOrThrow(Enchantments.INFINITY);
+		var mending = registry.getHolderOrThrow(Enchantments.MENDING);
+		var protection = registry.getHolderOrThrow(Enchantments.PROTECTION);
+		var sharpness = registry.getHolderOrThrow(Enchantments.SHARPNESS);
+		var smite = registry.getHolderOrThrow(Enchantments.SMITE);
+		var bane = registry.getHolderOrThrow(Enchantments.BANE_OF_ARTHROPODS);
+		var sharpnessPlus = ModEnchantments.SHARPNESS_PLUS.entry();
+		var endlessQuiver = ModEnchantments.ENDLESS_QUIVER.entry();
+		var config = SummyEnchantmentConfig.get();
+		boolean oldInfinityMending = config.enableInfinityMending;
+		boolean oldSharpness = config.enableCustomSharpness;
+		boolean oldProtection = config.enableProtectionLevel5;
+		int oldProtectionMax = config.protectionMaxLevel;
+		ItemStack oldWeapon = player.getMainHandItem();
+		try {
+			var anvil = new net.minecraft.world.inventory.AnvilMenu(1, player.getInventory(), net.minecraft.world.inventory.ContainerLevelAccess.create(player.serverLevel(), player.blockPosition()));
+			var mendingBook = net.minecraft.world.item.EnchantedBookItem.createForEnchantment(
+					new net.minecraft.world.item.enchantment.EnchantmentInstance(mending, 1));
+			for (boolean enabled : new boolean[] {false, true}) {
+				config.enableInfinityMending = enabled;
+				anvil.getSlot(0).set(enchanted(Items.BOW, infinity, 1));
+				anvil.getSlot(1).set(mendingBook.copy());
+				anvil.createResult();
+				boolean combined = !anvil.getSlot(2).getItem().isEmpty();
+				check("铁砧无限与经验修补开关", combined == enabled, "enabled=" + enabled + " result=" + combined);
+
+				ItemStack bow = enchanted(Items.BOW, mending, 1);
+				player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, bow);
+				checkEnchantCommand(player, enabled, "无限与经验修补");
+				ItemStack blockedBow = enchanted(Items.BOW, mending, 1);
+				blockedBow.enchant(endlessQuiver, 1);
+				player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, blockedBow);
+				checkEnchantCommand(player, false, "保留无尽箭袋互斥");
+
+				config.enableCustomSharpness = enabled;
+				check("锋利开关只放行原版锋利配对",
+						net.minecraft.world.item.enchantment.Enchantment.areCompatible(sharpnessPlus, sharpness) != enabled
+								&& !net.minecraft.world.item.enchantment.Enchantment.areCompatible(sharpnessPlus, smite)
+								&& !net.minecraft.world.item.enchantment.Enchantment.areCompatible(sharpnessPlus, bane),
+						"enabled=" + enabled);
+			}
+			config.enableProtectionLevel5 = true;
+			for (int max : new int[] {4, 5, 6}) {
+				config.protectionMaxLevel = max;
+				int actual = protection.value().getMaxLevel();
+				check("保护上限来自配置", actual == max, "configured=" + max + " actual=" + actual);
+			}
+			config.enableProtectionLevel5 = false;
+			check("关闭保护上限扩展", protection.value().getMaxLevel() == 4,
+					"actual=" + protection.value().getMaxLevel());
+		} finally {
+			player.setItemInHand(net.minecraft.world.InteractionHand.MAIN_HAND, oldWeapon);
+			config.enableInfinityMending = oldInfinityMending;
+			config.enableCustomSharpness = oldSharpness;
+			config.enableProtectionLevel5 = oldProtection;
+			config.protectionMaxLevel = oldProtectionMax;
+		}
+	}
+
+	private static void checkEnchantCommand(ServerPlayer player, boolean expected, String label) {
+		boolean accepted;
+		try {
+			accepted = player.getServer().getCommands().getDispatcher()
+					.execute("enchant @s minecraft:infinity 1", player.createCommandSourceStack().withPermission(4).withSuppressedOutput()) > 0;
+		} catch (com.mojang.brigadier.exceptions.CommandSyntaxException expectedRejection) {
+			accepted = false;
+		}
+		check("附魔命令：" + label, accepted == expected, "expected=" + expected + " actual=" + accepted);
+	}
+
 	private static void checkEnchantmentCompatibilityMatrix(ServerPlayer player) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		boolean oldSharpness = config.enableCustomSharpness;
@@ -801,8 +890,57 @@ public final class EnchantmentForgeDevCheck {
 		return "";
 	}
 
+	/** 按真实菜单的预览成本点击输出槽，验证接管与扣费。 */
+	private static void checkApothicAnvil(ServerPlayer player) {
+		boolean upstream = isLoaded("apothic_enchanting");
+		check("铁砧接管与加载的附魔模块一致", AnvilCostCompat.isApothicEnchantingLoaded() == upstream,
+				"ApothicEnchanting=" + upstream + " Apotheosis=" + isLoaded("apotheosis"));
+		var registry = player.serverLevel().registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+		var mending = registry.getHolderOrThrow(Enchantments.MENDING);
+		var config = SummyEnchantmentConfig.get();
+		boolean oldAnvil = config.enableAnvilXpCost;
+		boolean oldCreative = player.getAbilities().instabuild;
+		int oldLevel = player.experienceLevel;
+		int oldTotal = player.totalExperience;
+		float oldProgress = player.experienceProgress;
+		try {
+			config.enableAnvilXpCost = true;
+			player.getAbilities().instabuild = false;
+			player.experienceLevel = 30;
+			player.totalExperience = ExperienceMath.totalPointsForLevel(30);
+			player.experienceProgress = 0.0F;
+			var access = net.minecraft.world.inventory.ContainerLevelAccess.create(
+					player.serverLevel(), player.blockPosition());
+			var menu = new net.minecraft.world.inventory.AnvilMenu(1, player.getInventory(), access);
+			menu.getSlot(0).set(new ItemStack(Items.BOW));
+			menu.getSlot(1).set(net.minecraft.world.item.EnchantedBookItem.createForEnchantment(
+					new EnchantmentInstance(mending, 1)));
+			int vanillaLevels = Math.max(1, mending.value().getAnvilCost() / 2);
+			int expectedPoints = ExperienceMath.totalPointsForLevel(vanillaLevels);
+			int quoted = menu.getCost();
+			check("铁砧预览与当前接管方一致", quoted == (upstream ? vanillaLevels : expectedPoints)
+					&& !menu.getSlot(2).getItem().isEmpty(), "quoted=" + quoted + " upstream=" + upstream);
+
+			int before = player.totalExperience;
+			menu.clicked(2, 0, net.minecraft.world.inventory.ClickType.PICKUP, player);
+			int debited = before - player.totalExperience;
+			check("铁砧结算扣费一次", debited == expectedPoints
+					&& !menu.getCarried().isEmpty() && menu.getSlot(2).getItem().isEmpty(),
+					"expected=" + expectedPoints + " debited=" + debited);
+		} finally {
+			player.getAbilities().instabuild = oldCreative;
+			player.experienceLevel = oldLevel;
+			player.totalExperience = oldTotal;
+			player.experienceProgress = oldProgress;
+			config.enableAnvilXpCost = oldAnvil;
+		}
+	}
+
 	private static void checkLifeMending(ServerPlayer player) {
-		Holder<Enchantment> apotheosis = external(player, "apotheosis", "life_mending");
+		Holder<Enchantment> apotheosis = external(player, "apothic_enchanting", "life_mending");
+		if (isLoaded("apothic_enchanting")) {
+			check("生命修补：上游注册项", apotheosis != null, "apothic_enchanting:life_mending");
+		}
 		ItemStack chest = damaged(Items.IRON_CHESTPLATE, ModEnchantments.LIFE_MENDING, 3, 20);
 		ItemStack boots = apotheosis == null
 				? ItemStack.EMPTY
@@ -997,7 +1135,7 @@ public final class EnchantmentForgeDevCheck {
 						+ " heal=" + EnchantmentEffects.lifestealHeal(weapon, 10.0F));
 
 		Zombie target = spawnTarget(player, 100.0F, 100.0F);
-		SummyReliquaryCompat.settleHit("devcheck", player, weapon, target,
+		MeleeSettlement.settleHit("devcheck", player, weapon, target,
 				player.damageSources().playerAttack(player), 10.0F, 10.0F,
 				true, false, false, true);
 		float lost = 100.0F - target.getHealth();
@@ -1149,7 +1287,7 @@ public final class EnchantmentForgeDevCheck {
 		player.serverLevel().getEntitiesOfClass(
 				LivingEntity.class,
 				player.getBoundingBox().inflate(32.0D),
-				entity -> entity != player && !(entity instanceof ServerPlayer))
+				entity -> entity != player && entity != soulGraceVictim && !(entity instanceof ServerPlayer))
 				.forEach(LivingEntity::discard);
 	}
 

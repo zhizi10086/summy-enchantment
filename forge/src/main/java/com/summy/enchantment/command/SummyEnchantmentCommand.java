@@ -94,7 +94,7 @@ public final class SummyEnchantmentCommand {
 	private static int status(CommandSourceStack source) {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		source.sendSuccess(() -> Component.translatable("commands.summy_enchantment.status.header"), false);
-		if (AnvilCostCompat.isApotheosisLoaded()) {
+		if (AnvilCostCompat.isApothicEnchantingLoaded()) {
 			source.sendSuccess(() -> Component.translatable(
 					"commands.summy_enchantment.anvil.apotheosis_inactive"), false);
 		}
@@ -118,7 +118,7 @@ public final class SummyEnchantmentCommand {
 		config.save();
 		source.sendSuccess(() -> Component.translatable("commands.summy_enchantment.set",
 				Component.translatable(option.translationKey()), describe(option, config)), true);
-		if (AnvilCostCompat.isApotheosisLoaded()
+		if (AnvilCostCompat.isApothicEnchantingLoaded()
 				&& (option == Option.ENABLE_ANVIL_XP_COST || option == Option.ANVIL_MAX_COST_LEVEL)) {
 			source.sendSuccess(() -> Component.translatable(
 					"commands.summy_enchantment.anvil.apotheosis_inactive"), false);

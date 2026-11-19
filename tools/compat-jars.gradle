@@ -1,0 +1,26 @@
+import java.security.MessageDigest
+
+// 编译期可选依赖须来自明确指定的目录，且与已验证的官方文件一致。
+ext.requireCompatJar = { String name, String sha256 ->
+    def inputDir = providers.gradleProperty('compatJarsDir').orNull
+    if (!inputDir) {
+        throw new GradleException("缺少 -PcompatJarsDir=<目录>，需要 ${name}")
+    }
+    def jarFile = new File(file(inputDir), name)
+    if (!jarFile.isFile()) {
+        throw new GradleException("缺少兼容依赖：${jarFile}")
+    }
+    def digest = MessageDigest.getInstance('SHA-256')
+    jarFile.withInputStream { stream ->
+        byte[] buffer = new byte[16384]
+        int count
+        while ((count = stream.read(buffer)) != -1) {
+            digest.update(buffer, 0, count)
+        }
+    }
+    def actual = digest.digest().encodeHex().toString()
+    if (!sha256.equalsIgnoreCase(actual)) {
+        throw new GradleException("兼容依赖 ${jarFile.name} 的 SHA-256 不匹配，期望 ${sha256}，实际 ${actual}")
+    }
+    jarFile
+}

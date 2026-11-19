@@ -6,6 +6,7 @@ import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModEnchantments;
 import net.minecraft.enchantment.Enchantment;
 import net.minecraft.enchantment.Enchantments;
+import net.minecraft.registry.entry.RegistryEntry;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
 import org.spongepowered.asm.mixin.Mixin;
@@ -18,6 +19,24 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  */
 @Mixin(Enchantment.class)
 public abstract class EnchantmentMixin {
+	@ModifyReturnValue(method = "canBeCombined", at = @At("RETURN"))
+	private static boolean summyEnchantment$applyPairCompatibility(boolean original,
+			RegistryEntry<Enchantment> first, RegistryEntry<Enchantment> second) {
+		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
+		// 只改变当前这一对，保留同一物品上其余附魔的独立判定。
+		if (config.enableInfinityMending
+				&& ((first.matchesKey(Enchantments.INFINITY) && second.matchesKey(Enchantments.MENDING))
+						|| (first.matchesKey(Enchantments.MENDING) && second.matchesKey(Enchantments.INFINITY)))) {
+			return true;
+		}
+		if (config.enableCustomSharpness
+				&& ((first.matchesKey(Enchantments.SHARPNESS) && ModEnchantments.SHARPNESS_PLUS.matches(second))
+						|| (second.matchesKey(Enchantments.SHARPNESS) && ModEnchantments.SHARPNESS_PLUS.matches(first)))) {
+			return false;
+		}
+		return original;
+	}
+
 	@Inject(method = "isAcceptableItem(Lnet/minecraft/item/ItemStack;)Z", at = @At("HEAD"), cancellable = true)
 	private void summyEnchantment$applyItemCompatibility(ItemStack stack, CallbackInfoReturnable<Boolean> cir) {
 		Enchantment self = (Enchantment) (Object) this;
@@ -48,7 +67,7 @@ public abstract class EnchantmentMixin {
 		SummyEnchantmentConfig config = SummyEnchantmentConfig.get();
 		if (config.enableProtectionLevel5
 				&& EnchantmentRef.valueMatches(self, Enchantments.PROTECTION)) {
-			return 5;
+			return config.protectionMaxLevel;
 		}
 		if (ModEnchantments.SHARPNESS_PLUS.matchesValue(self)) {
 			return config.enableCustomSharpness ? config.sharpnessMaxLevel : original;

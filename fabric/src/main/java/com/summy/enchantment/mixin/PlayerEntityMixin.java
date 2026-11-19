@@ -6,7 +6,7 @@ import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.HungerOwner;
-import com.summy.enchantment.compat.SummyReliquaryCompat;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.mojang.authlib.GameProfile;
 import com.summy.enchantment.particle.MeleeParticles;
 import com.summy.enchantment.registry.ModAttributes;
@@ -215,9 +215,9 @@ public abstract class PlayerEntityMixin {
 			this.summyEnchantment$mainHitLanded = true;
 			this.summyEnchantment$mainHitAmount = finalAmount;
 		}
-		// 命中后效果统一走 SummyReliquaryCompat.settleHit：与 SR 兼容路径共用同一套口径与同一份诊断日志。
+		// 命中后效果统一走 MeleeSettlement.settleHit：与 SR 兼容路径共用结算规则。
 		// （魔剑/嗜血恒定；主命中粒子与斩杀只在"主命中"；出其不意两条路径都掷）
-		SummyReliquaryCompat.settleHit("melee", self, self.getMainHandStack(), target, source,
+		MeleeSettlement.settleHit("melee", self, self.getMainHandStack(), target, source,
 				amount, finalAmount, hit, true, true, target == this.summyEnchantment$attackTarget);
 		return hit;
 	}

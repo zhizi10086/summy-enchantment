@@ -3,7 +3,7 @@ package com.summy.enchantment.api;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.EnchantmentEffects;
-import com.summy.enchantment.compat.SummyReliquaryCompat;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.registry.ModEnchantments;
@@ -115,7 +115,7 @@ public final class SummyEnchantmentApi {
 
 	/** 当前近战乘区：力量 × 复仇；死神祝福造成侧仍在受伤侧结算 */
 	public static float meleeMultiplier(Player player) {
-		return player == null ? 1.0F : SummyReliquaryCompat.meleeMultiplier(player);
+		return player == null ? 1.0F : MeleeSettlement.meleeMultiplier(player);
 	}
 
 	/** 当前已注册的全部 SE 附魔完整 ID，按字母排序。 */

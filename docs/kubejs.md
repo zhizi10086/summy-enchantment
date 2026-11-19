@@ -13,27 +13,8 @@
 - 客户端脚本获得 24 个只读查询方法；不提供写入、藏剑冷却或任何服务端事件。脚本类过滤器默认封锁整个 `com.summy.enchantment.` 包，仅服务端脚本可精确加载 `SummyEnchantmentApi`。
 - 启动脚本不绑定 `SummyEnchantment`，避免在注册表或世界状态尚未就绪时访问依赖对象。
 
-开发期可使用 `-PkubejsModsDir=<目录>` 将官方 KubeJS、Rhino 与所需联动 JAR 加入真实客户端脚本自检；该目录只用于测试，不会进入正式 JAR。可通过 `-PkubejsVersion=<版本>`、`-PrhinoVersion=<版本>` 切换测试矩阵，默认分别为 `2101.7.2-build.381`、`2101.2.7-build.81`。
+开发期在 NeoForge 工程使用 `verifyKubeJsSelfTest -PkubejsDevcheck`，同时传入 `-PcompatJarsDir=<官方依赖目录>` 与 `-PseTestRunDir=<测试实例目录>`。将 `tools/kubejs-selftest/` 中的内容复制到测试实例的 `kubejs/`，将专用存档放入 `saves/SeDevCheckWorld`。任务验证脚本 API、七类事件和客户端隔离。具体依赖见 [发布流程](release-process.md)。
 
-Minecraft 1.21.1 Fabric 当前没有 KubeJS 上游版本，因此 Fabric 产物不包含插件文件或 KubeJS 类。
-
-仓库内置自检脚本位于 `tools/kubejs-selftest/`；存在 `kubejsModsDir` 时，`runClient` / `runServer` 会自动复制到 `run/kubejs`，测试后可安全清理 `run/`。
-
-推荐使用自动断言任务，而不是只运行客户端后人工读日志：
-
-```bash
-./gradlew verifyKubeJsSelfTest \
-  -Pdevcheck \
-  -PdevcheckMode=kubejs \
-  -PkubejsModsDir=<KubeJS、Rhino、Architectury 所在目录> \
-  -PdevcheckWorldDir=<现成的 SeDevCheckWorld 存档目录>
-```
-
-`SeDevCheckWorld` 可由上一次测试保留，也可通过 `devcheckWorldDir` 从仓库外复制；两者都没有时任务会立即报错，不进入 60 秒等待。该模式只执行 KubeJS 桥接自检，不要求安装 Celestial、Apotheosis 或 Majrusz。任务会检查公共 API 放行、内部类封锁、客户端/启动脚本隔离、七个事件和基础 API 返回值；任一标记缺失或出现意外放行时直接失败。
-
-仓库内第三方编译依赖的版本、许可证、来源和 SHA-256 见 [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)。
-
-绑定矩阵：
 
 | 脚本类型 | `SummyEnchantment` | `SummyEnchantmentEvents` | 直接加载 API 类 |
 | --- | --- | --- | --- |

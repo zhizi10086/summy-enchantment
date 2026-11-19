@@ -65,6 +65,14 @@ public final class EnchantmentRef {
 		clientRegistry = registry;
 	}
 
+	public static void clearServerRegistry() {
+		serverRegistry = null;
+	}
+
+	public static void clearClientRegistry() {
+		clientRegistry = null;
+	}
+
 	public static boolean valueMatches(Enchantment value, ResourceKey<Enchantment> key) {
 		return valueMatchesIn(value, key, serverRegistry)
 				|| valueMatchesIn(value, key, clientRegistry);

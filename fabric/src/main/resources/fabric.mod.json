@@ -31,8 +31,7 @@
   },
   "mixins": [
     "summy_enchantment.mixins.json",
-    "summy_enchantment.spears.mixins.json",
-    "summy_enchantment.summy_reliquary.mixins.json"
+    "summy_enchantment.spears.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.20.1",

@@ -6,7 +6,7 @@ import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.ElectricArc;
 import com.summy.enchantment.combat.EnchantmentEffects;
-import com.summy.enchantment.compat.SummyReliquaryCompat;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.summy.enchantment.compat.SummyEnchantmentScriptHooks;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.EnchantmentRef;
@@ -159,7 +159,10 @@ public final class EnchantmentFabricDevCheck {
 					case 50 -> checkMobStrengthToggle(player);
 					case 55 -> checkMobStrengthAutoRestore();
 					case 60 -> checkLifeShield(player);
-					case 62 -> checkEnchantmentCompatibilityMatrix(player);
+					case 62 -> {
+						checkEnchantmentCompatibilityMatrix(player);
+						checkEnchantmentEntryPoints(player);
+					}
 					case 80 -> checkLifeMending(player);
 					case 100 -> checkDeathsBlessing(player);
 					case 110 -> checkSoulGrace(player);
@@ -182,7 +185,10 @@ public final class EnchantmentFabricDevCheck {
 				case 61 -> checkMixedAbsorptionPool(player);
 				case 40 -> checkMajruszOutgoing(player);
 				case 60 -> checkMajruszIncoming(player);
-				case 62 -> checkEnchantmentCompatibilityMatrix(player);
+				case 62 -> {
+					checkEnchantmentCompatibilityMatrix(player);
+					checkEnchantmentEntryPoints(player);
+				}
 				case 70 -> checkKubeJSEvents(player);
 				case 100 -> finish("Fabric 客户端自检结束");
 				default -> {
@@ -720,7 +726,7 @@ public final class EnchantmentFabricDevCheck {
 						+ " heal=" + EnchantmentEffects.lifestealHeal(weapon, 10.0F));
 
 		ZombieEntity target = spawnTarget(player, 100.0F, 100.0F);
-		SummyReliquaryCompat.settleHit("devcheck", player, weapon, target,
+		MeleeSettlement.settleHit("devcheck", player, weapon, target,
 				player.getDamageSources().playerAttack(player), 10.0F, 10.0F,
 				true, false, false, true);
 		float lost = 100.0F - target.getHealth();
@@ -962,6 +968,79 @@ public final class EnchantmentFabricDevCheck {
 			player.equipStack(EquipmentSlot.CHEST, ItemStack.EMPTY);
 			config.enableLifeShield = oldLifeShield;
 		}
+	}
+
+	/** 使用真实铁砧菜单和原版命令验证相同的配对规则。 */
+	private static void checkEnchantmentEntryPoints(ServerPlayerEntity player) {
+		var registry = player.getServerWorld().getRegistryManager().get(RegistryKeys.ENCHANTMENT);
+		var infinity = registry.getEntry(Enchantments.INFINITY).orElseThrow();
+		var mending = registry.getEntry(Enchantments.MENDING).orElseThrow();
+		var protection = registry.getEntry(Enchantments.PROTECTION).orElseThrow();
+		var sharpness = registry.getEntry(Enchantments.SHARPNESS).orElseThrow();
+		var smite = registry.getEntry(Enchantments.SMITE).orElseThrow();
+		var bane = registry.getEntry(Enchantments.BANE_OF_ARTHROPODS).orElseThrow();
+		var sharpnessPlus = ModEnchantments.SHARPNESS_PLUS.entry();
+		var endlessQuiver = ModEnchantments.ENDLESS_QUIVER.entry();
+		var config = SummyEnchantmentConfig.get();
+		boolean oldInfinityMending = config.enableInfinityMending;
+		boolean oldSharpness = config.enableCustomSharpness;
+		boolean oldProtection = config.enableProtectionLevel5;
+		int oldProtectionMax = config.protectionMaxLevel;
+		ItemStack oldWeapon = player.getMainHandStack();
+		try {
+			var anvil = new net.minecraft.screen.AnvilScreenHandler(1, player.getInventory(), net.minecraft.screen.ScreenHandlerContext.create(player.getServerWorld(), player.getBlockPos()));
+			var mendingBook = net.minecraft.item.EnchantedBookItem.forEnchantment(
+					new net.minecraft.enchantment.EnchantmentLevelEntry(mending, 1));
+			for (boolean enabled : new boolean[] {false, true}) {
+				config.enableInfinityMending = enabled;
+				anvil.getSlot(0).setStack(enchanted(Items.BOW, infinity, 1));
+				anvil.getSlot(1).setStack(mendingBook.copy());
+				anvil.updateResult();
+				boolean combined = !anvil.getSlot(2).getStack().isEmpty();
+				check("铁砧无限与经验修补开关", combined == enabled, "enabled=" + enabled + " result=" + combined);
+
+				ItemStack bow = enchanted(Items.BOW, mending, 1);
+				player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, bow);
+				checkEnchantCommand(player, enabled, "无限与经验修补");
+				ItemStack blockedBow = enchanted(Items.BOW, mending, 1);
+				blockedBow.addEnchantment(endlessQuiver, 1);
+				player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, blockedBow);
+				checkEnchantCommand(player, false, "保留无尽箭袋互斥");
+
+				config.enableCustomSharpness = enabled;
+				check("锋利开关只放行原版锋利配对",
+						net.minecraft.enchantment.Enchantment.canBeCombined(sharpnessPlus, sharpness) != enabled
+								&& !net.minecraft.enchantment.Enchantment.canBeCombined(sharpnessPlus, smite)
+								&& !net.minecraft.enchantment.Enchantment.canBeCombined(sharpnessPlus, bane),
+						"enabled=" + enabled);
+			}
+			config.enableProtectionLevel5 = true;
+			for (int max : new int[] {4, 5, 6}) {
+				config.protectionMaxLevel = max;
+				int actual = protection.value().getMaxLevel();
+				check("保护上限来自配置", actual == max, "configured=" + max + " actual=" + actual);
+			}
+			config.enableProtectionLevel5 = false;
+			check("关闭保护上限扩展", protection.value().getMaxLevel() == 4,
+					"actual=" + protection.value().getMaxLevel());
+		} finally {
+			player.setStackInHand(net.minecraft.util.Hand.MAIN_HAND, oldWeapon);
+			config.enableInfinityMending = oldInfinityMending;
+			config.enableCustomSharpness = oldSharpness;
+			config.enableProtectionLevel5 = oldProtection;
+			config.protectionMaxLevel = oldProtectionMax;
+		}
+	}
+
+	private static void checkEnchantCommand(ServerPlayerEntity player, boolean expected, String label) {
+		boolean accepted;
+		try {
+			accepted = player.getServer().getCommandManager().getDispatcher()
+					.execute("enchant @s minecraft:infinity 1", player.getCommandSource().withLevel(4).withSilent()) > 0;
+		} catch (com.mojang.brigadier.exceptions.CommandSyntaxException expectedRejection) {
+			accepted = false;
+		}
+		check("附魔命令：" + label, accepted == expected, "expected=" + expected + " actual=" + accepted);
 	}
 
 	private static void checkEnchantmentCompatibilityMatrix(ServerPlayerEntity player) {

@@ -19,15 +19,15 @@ Minecraft **1.21.1** 的附魔与机制改造模组：重做锋利与力量、�
 | 构建 | Gradle 9.2.1 + ModDevGradle 2.0.148 + Parchment 2024.11.17 |
 | JDK | 21 |
 | 构建命令 | `gradlew build` |
-| 产物 | `MC mod/JAR/1.21.1/summy-enchantment-neoforge/summy-enchantment-1.4.3+1.21.1-neoforge.jar` |
+| 产物 | `MC mod/JAR/1.21.1/summy-enchantment-neoforge/summy-enchantment-1.4.3-fix+1.21.1-neoforge.jar` |
 
-## 1.4.3+1.21.1 兼容收口版本
+## 1.4.3-fix+1.21.1 兼容收口版本
 
 - Fabric 玩家属性改为构造末尾按需追加；NeoForge 继续通过 `EntityAttributeModificationEvent` 添加玩家属性。
 - 自动熔炼改为包装原版掉落列表，保留方块经验与平台回调；额外箭首次伤害失败后不再重复触发伤害事件。
 - NeoForge 对 Apotheosis 使用铁砧成本整体退让；生物力量开关、灵魂加护/恶咒、斩杀结果、电刀友军过滤和复仇窗口清理按 1.4.3 契约修正。
 - NeoForge 核心自检 63/0；NeoForge + SR 2.0.0 + SRA 0.1.3 + Curios 自检 29/0；KubeJS 2101.7.2 自检通过。
-- NeoForge 正式产物为 `summy-enchantment-1.4.3+1.21.1-neoforge.jar`；协议仍为 9，附魔仍 32、配置仍 99/11 组。
+- NeoForge 正式产物为 `summy-enchantment-1.4.3-fix+1.21.1-neoforge.jar`；协议仍为 9，附魔仍 32、配置仍 99/11 组。
 
 ## 1.4.2+1.21.1 平台版本
 
@@ -636,7 +636,7 @@ Summy Reliquary: Apocrypha 的 `summy-reliquary-apocrypha:apoptosis_element`（�
 gradlew build
 ```
 
-产物：`build/libs/summy-enchantment-1.4.3+1.21.1-neoforge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment-neoforge/`。
+产物：`build/libs/summy-enchantment-1.4.3-fix+1.21.1-neoforge.jar`，构建结束后会自动复制到 `MC mod/JAR/1.21.1/summy-enchantment-neoforge/`。
 
 > `libs/` 中的 Backported Spears 1.4.7 与 1.5.0 JAR（CC0 许可）**只用于编译和开发自检**，不会打进本模组；默认使用 1.5.0 编译，`spearVersion` 可切换到 1.4.7。
 

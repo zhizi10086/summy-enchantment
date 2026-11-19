@@ -241,7 +241,7 @@
 - **获取方式**：**可以出现在附魔台**（附魔台不排除诅咒）/ 铁砧 / 随机战利品 / 创造书 / 命令。
 - **互斥**：无。
 - **相关配置键**：`enable_life_mending`（开）、`life_mending_durability_per_level`（1.0）（均服务端作用域）。
-- **边界与实现位置**：**满血时同样生效**（用本次治疗量换算耐久）；装备满耐久/未损坏时跳过，换算后不足 1 点也不修，这两种情况会正常回血；与恶咒联动不变。**Apotheosis `life_mending` 同时存在时，SE 严格优先**：SE 有可修装备时仍吞掉整次治疗并阻止后续 `LivingHealEvent`；SE 无可修装备时 Apotheosis 及 Curios 修理照常生效。实现：`LivingEntityMixin#heal` + `ItemStackMixin`（耐久入口）。
+- **边界与实现位置**：**满血时同样生效**（用本次治疗量换算耐久）；装备满耐久/未损坏时跳过，换算后不足 1 点也不修，这两种情况会正常回血；与恶咒联动不变。**Apothic Enchanting `apothic_enchanting:life_mending` 同时存在时，SE 严格优先**：SE 有可修装备时仍吞掉整次治疗并阻止后续 `LivingHealEvent`；SE 无可修装备时 Apotheosis 及 Curios 修理照常生效。实现：`LivingEntityMixin#heal` + `ItemStackMixin`（耐久入口）。
 
 ### 速食（`quick_eat`）
 
@@ -358,9 +358,9 @@
 
 ### 原版附魔调整（原版改动组）
 
-- `enable_protection_level_5`（开）：允许原版保护到 5 级（铁砧两个保护 IV → V）；隐藏项 `protection_max_level`（5，仅配置文件可改）。
+- `enable_protection_level_5`（开）：允许原版保护到 5 级（铁砧两个保护 IV → V）；隐藏项 `protection_max_level`（默认为 5，范围 1–10，仅配置文件可改）。
 - `enable_impaling_bedrock_rule`（开）：穿刺按**基岩版规则**判定（攻击时把目标生物类型视为水生，接触水或淋雨即可）。
-- `enable_infinity_mending`（开）：允许**无限 + 经验修补**共存。
+- `enable_infinity_mending`（开）：允许**无限 + 经验修补**在铁砧、附魔命令等入口共存，其他附魔仍分别检查自己的互斥。
 - `enable_crossbow_compat`（开）：**弓弩附魔互通**——弩能附力量/无限/火矢/冲击与本模组弓类附魔（疾矢、幻影箭、无尽箭袋），弓能附原版弩的**多重射击 / 穿透**；关闭时两侧同时失效。
 - `enable_loyalty_rework`（开）：**忠诚改版**——投掷时本体留在物品栏，飞出的只是"假三叉戟"，返回前无法再次投掷（快捷栏显示冷却）；关闭后完全恢复原版。
 - 弓弩与箭矢组的机制项：`multishot_spread_degrees`（10）、`enable_multishot_all_hit`（开）、`enable_potion_arrow_full_damage`（开）、`bow_inaccuracy`（1.0）。

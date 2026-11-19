@@ -10,7 +10,7 @@ import java.util.Set;
 /**
  * SE 主 Mixin 配置插件。
  *
- * <p>只处理 Apotheosis 铁砧成本冲突；未安装 Apotheosis 时全部 Mixin 保持
+ * <p>只处理 Apothic Enchanting 铁砧成本冲突；未安装 Apothic Enchanting 时全部 Mixin 保持
  * 原有 required 行为，不会因为兼容退让而降低目标校验强度。
  */
 public final class SummyEnchantmentMixinPlugin implements IMixinConfigPlugin {
@@ -30,7 +30,7 @@ public final class SummyEnchantmentMixinPlugin implements IMixinConfigPlugin {
 
 	@Override
 	public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-		return !AnvilCostCompat.isApotheosisLoaded()
+		return !AnvilCostCompat.isApothicEnchantingLoaded()
 				|| !APOTHESIS_OWNED_ANVIL_MIXINS.contains(mixinClassName);
 	}
 

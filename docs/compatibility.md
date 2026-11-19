@@ -30,7 +30,7 @@
 | SE 附魔 | 外部附魔 | 规则 |
 | --- | --- | --- |
 | 生命护盾 `summy_enchantment:life_shield` | Celestial `celestial_enchantments:life_shield` | 胸甲同时存在时，SE 主动退让；停止累积并只撤回 SE 自己剩余的份额，不修改原版或 Celestial 的吸收。移除 Celestial 附魔后自动恢复。 |
-| 生命修补 `summy_enchantment:life_mending` | Apotheosis `apotheosis:life_mending` | SE 严格优先。SE 有可修装备时整段治疗仍由 SE 消耗；SE 没有可修装备时，Forge 治疗事件照常继续，Apotheosis 的生命修补及 Curios 修理可正常生效。 |
+| 生命修补 `summy_enchantment:life_mending` | Apothic Enchanting `apothic_enchanting:life_mending` | SE 严格优先。SE 有可修装备时整段治疗仍由 SE 消耗；SE 没有可修装备时，Forge 治疗事件照常继续，Apotheosis 的生命修补及 Curios 修理可正常生效。 |
 | 死神祝福 `summy_enchantment:deaths_blessing` | Majrusz `majruszsenchantments:death_wish` | 同一实体带有死神之愿时，SE 的对应侧主动退让：攻击者侧不再乘造成倍率，受击者侧不再享受受伤倍率。双方分别判断。 |
 
 生命护盾与生命修补的 `LivingHealEvent` 先后关系保持不变：SE 生命修补仍在治疗入口最先结算，因此 SE 修理成功时不会触发后续吸收或 Apotheosis 治疗事件。这是已确认的刻意优先级，不是随机事件顺序。
@@ -42,7 +42,7 @@
 
 ## Mixin 兼容规则
 
-- **Apotheosis 铁砧成本**：只要检测到 `apotheosis`，SE 就整体停用经验点成本、40 级上限修改和客户端“等级/点数”显示，由 Apotheosis 接管铁砧。`enable_anvil_xp_cost` 与 `anvil_max_cost_level` 的保存值不会被改写，移除 Apotheosis 并重启后按原偏好恢复。
+- **Apothic Enchanting 铁砧成本**：只要检测到 `apothic_enchanting`，SE 就整体停用经验点成本、40 级上限修改和客户端“等级/点数”显示，由 Apothic Enchanting 接管铁砧。`enable_anvil_xp_cost` 与 `anvil_max_cost_level` 的保存值不会被改写，移除 Apothic Enchanting 并重启后按原偏好恢复。
 - **Twilight Dusk 幻影箭重力**：Twilight Dusk 1.2 使用 `@ModifyConstant` 把幻影箭的重力常量减半。SE 1.4.1 不再占用该常量，而是读取箭矢 `tick` 中最终准备写入的纵向速度，按实际重力乘 SE 轻盈倍率。两项同时存在时按乘算处理，例如 `0.5 × 0.6 = 0.3`。
 - **大胃袋与其它饥饿容量修改**：SE 1.4.1 包装饥饿封顶表达式与“还能吃”返回值，不从固定 `20` 常量抢占。SE 保证大胃袋自身上限，同时保留其它模组更高或更宽的判定；有效上限取双方较高值。
 
@@ -87,7 +87,13 @@ SE 当前未复制或打包上述模组的源码、语言文本或材质。若�
 - 2026-11-02，Forge 真实客户端同时装载官方 Farmer's Delight `1.20.1-1.3.4`（SHA-256 `34f03eb671ea1ca579b00c98e4541404cb96d1a292014aed9cc5eb45ad8afbce`）与 Twilight Dusk `1.2fix1`（SHA-256 `91f68bc7fa1f1fdc2e505c3b184f4c051ba1bed7656d8163f68b74d4aef2e40e`），并安装 Twilight Dusk 所需的 Twilight Forest 4.3.2508、Curios 5.14.1。`[SE-DEVCHECK]` 共 19 项、失败 0 项。
 - 同一轮日志确认 `PersistentProjectileEntityMixin`、`PhantomArrowGravityMixin`、`HungerManagerMixin`、`NourishmentAlwaysEatMixin` 均成功应用，未出现 `already redirected`、`Critical injection failure` 或 Mixin apply 失败。
 - 幻影箭重力实测为普通箭的一半；轻盈 2 级再乘 0.5，普通箭与幻影箭都正确保留了 Twilight Dusk 的减重力。大胃袋 5 级实际从 0 吃至 30、40，满值时 `needsFood=false`；Farmer's Delight 的滋养效果在 40 点时仍允许进食。
-- 2026-11-16，NeoForge 1.21.1 无 Apotheosis：`clean build`、客户端核心自检 35 项/失败 0 项和专用服务端 `Done` 通过，SE 铁砧 Mixin 正常应用。对应 1.21.1 Apotheosis 实机组合等待可用 JAR 后补充验证。
+- 2026-11-16，NeoForge 1.21.1 无 Apotheosis：`clean build`、客户端核心自检 35 项/失败 0 项和专用服务端 `Done` 通过，SE 铁砧 Mixin 正常应用。该条为 1.4.3 的历史记录。
 - 2026-11-16 兼容收口：Fabric 核心自检 68/0；NeoForge 核心自检 63/0。生命护盾混合池、真实随机附魔结果和 Fabric 玩家属性追加均通过。
 - 随机附魔回归修复了 1.21.1 两树过滤候选表返回不可变列表的问题；NeoForge KubeJS 实际加载通过，NeoForge + SR 2.0.0/SRA + Curios 组合自检 29 项、失败 0 项。
 - 客户端自检使用 `SeDevCheckWorld`，不会在普通存档运行；Forge 与 Fabric 的正式发布产物均排除开发自检包。
+
+## 1.4.3-fix 兼容验证
+
+- NeoForge Apothic Enchanting 1.6.4 单装 9/0，Apotheosis 8.9.0 完整组合 9/0，卸载场景 5/0。铁砧交易按预览扣费一次，SE 有可修装备时优先，否则上游生命修补接续处理。
+- NeoForge 与 SR 2.0.1、SRA 0.1.4、Curios 9.5.1 的核心自检 78/0，覆盖三个 SR 伤害入口。Fabric 正式包移除 SR 专用注入。
+- Backported Spears 1.8.0 专项双端各 9/0。NeoForge KubeJS 2101.7.2-build.381 的 API、脚本隔离和七类事件回归通过。

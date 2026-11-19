@@ -52,7 +52,7 @@ public class SummyEnchantment implements ModInitializer {
 
 		// 客户端上报的"每名玩家自己的箭矢粒子档位"（不属于服务端配置，单独一条通道）
 		ConfigSync.registerServerReceivers();
-		ServerLifecycleEvents.SERVER_STARTED.register(server ->
+		ServerLifecycleEvents.SERVER_STARTING.register(server ->
 				EnchantmentRef.bindServerRegistry(server.getRegistryManager().get(RegistryKeys.ENCHANTMENT)));
 		// 服务器停止时清空近战粒子的待喷发队列
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> MeleeParticles.clearBursts());

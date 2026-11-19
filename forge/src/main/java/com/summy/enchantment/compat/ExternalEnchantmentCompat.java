@@ -16,16 +16,16 @@ import net.neoforged.fml.ModList;
 public final class ExternalEnchantmentCompat {
 	private static final String CELESTIAL_ENCHANTMENTS = "celestial_enchantments";
 	private static final String MAJRUSZ_ENCHANTMENTS = "majruszsenchantments";
-	private static final String APOTHEOSIS = "apotheosis";
+	private static final String APOTHIC_ENCHANTING = "apothic_enchanting";
 	private static final ResourceLocation CELESTIAL_LIFE_SHIELD =
 			ResourceLocation.fromNamespaceAndPath(CELESTIAL_ENCHANTMENTS, "life_shield");
 	private static final ResourceLocation MAJRUSZ_DEATH_WISH =
 			ResourceLocation.fromNamespaceAndPath(MAJRUSZ_ENCHANTMENTS, "death_wish");
-	private static final ResourceLocation APOTHEOSIS_LIFE_MENDING =
-			ResourceLocation.fromNamespaceAndPath(APOTHEOSIS, "life_mending");
+	private static final ResourceLocation APOTHIC_ENCHANTING_LIFE_MENDING =
+			ResourceLocation.fromNamespaceAndPath(APOTHIC_ENCHANTING, "life_mending");
 	private static final boolean CELESTIAL_LOADED = ModList.get().isLoaded(CELESTIAL_ENCHANTMENTS);
 	private static final boolean MAJRUSZ_LOADED = ModList.get().isLoaded(MAJRUSZ_ENCHANTMENTS);
-	private static final boolean APOTHEOSIS_LOADED = ModList.get().isLoaded(APOTHEOSIS);
+	private static final boolean APOTHIC_ENCHANTING_LOADED = ModList.get().isLoaded(APOTHIC_ENCHANTING);
 	private static boolean compatibilityPolicyLogged;
 
 	private ExternalEnchantmentCompat() {
@@ -40,8 +40,8 @@ public final class ExternalEnchantmentCompat {
 		return MAJRUSZ_LOADED && hasOnEquipment(entity, MAJRUSZ_DEATH_WISH);
 	}
 
-	public static boolean hasApotheosisLifeMending(LivingEntity entity) {
-		return APOTHEOSIS_LOADED && hasOnEquipment(entity, APOTHEOSIS_LIFE_MENDING);
+	public static boolean hasApothicEnchantingLifeMending(LivingEntity entity) {
+		return APOTHIC_ENCHANTING_LOADED && hasOnEquipment(entity, APOTHIC_ENCHANTING_LIFE_MENDING);
 	}
 
 	public static void logCompatibilityPolicies() {
@@ -57,9 +57,9 @@ public final class ExternalEnchantmentCompat {
 			SummyEnchantment.LOGGER.info(
 					"[SE] 兼容策略：检测到 Majrusz 死神之愿时，SE 死神祝福退让");
 		}
-		if (APOTHEOSIS_LOADED) {
+		if (APOTHIC_ENCHANTING_LOADED) {
 			SummyEnchantment.LOGGER.info(
-					"[SE] 兼容策略：生命修补由 SE 严格优先，Apotheosis 仅在 SE 无可修装备时生效");
+					"[SE] 兼容策略：生命修补由 SE 严格优先，Apothic Enchanting 仅在 SE 无可修装备时生效");
 		}
 	}
 

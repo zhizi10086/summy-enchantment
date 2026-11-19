@@ -9,7 +9,8 @@ def coreDevcheckEnabled = project.hasProperty('coreDevcheck')
 def spearDevcheck = project.hasProperty('spearDevcheck')
 def spearOnly = project.hasProperty('spearOnly') || spearDevcheck
 def isolatedCompatBuild = project.hasProperty('coreOnly') || spearOnly
-def spearJar = file('libs/spear-backport-fabric-1.8.0-1.21.1.jar')
+apply from: file('../tools/compat-jars.gradle')
+def seLocalCache = providers.gradleProperty('seLocalCache').isPresent()
 def modmenuJar = file(".gradle/modmenu-${project.modmenu_version}.jar")
 
 base {
@@ -17,31 +18,33 @@ base {
 }
 
 repositories {
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = 'SELocalMaven'
-                url = uri('.gradle/se-local-maven')
+    if (providers.gradleProperty('seLocalCache').isPresent()) {
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'SELocalMaven'
+                    url = uri('.gradle/se-local-maven')
+                }
+            }
+            filter {
+                includeGroup('org.ow2.asm')
+                includeGroup('io.github.llamalad7')
+                includeModule('net.fabricmc', 'dev-launch-injector')
+                includeModule('net.fabricmc', 'fabric-log4j-util')
+                includeModule('net.fabricmc', 'intermediary')
+                includeModule('net.fabricmc', 'sponge-mixin')
             }
         }
-        filter {
-            includeGroup('org.ow2.asm')
-            includeGroup('io.github.llamalad7')
-            includeModule('net.fabricmc', 'dev-launch-injector')
-            includeModule('net.fabricmc', 'fabric-log4j-util')
-            includeModule('net.fabricmc', 'intermediary')
-            includeModule('net.fabricmc', 'sponge-mixin')
-        }
-    }
-    exclusiveContent {
-        forRepository {
-            maven {
-                name = 'HuaweiMappingIO'
-                url = 'https://repo.huaweicloud.com/repository/maven/'
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'HuaweiMappingIO'
+                    url = 'https://repo.huaweicloud.com/repository/maven/'
+                }
             }
-        }
-        filter {
-            includeModule('net.fabricmc', 'mapping-io')
+            filter {
+                includeModule('net.fabricmc', 'mapping-io')
+            }
         }
     }
     maven {
@@ -60,6 +63,12 @@ loom {
         useLegacyMixinAp = false
     }
     runs {
+        configureEach {
+            def testRunDir = project.findProperty('seTestRunDir')
+            if (testRunDir) {
+                runDir project.relativePath(project.file(testRunDir))
+            }
+        }
         client {
             if (project.hasProperty('devcheck') || coreDevcheckEnabled || spearDevcheck) {
                 property 'summy_enchantment.devcheck', 'true'
@@ -81,27 +90,33 @@ tasks.named('runClient') {
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
 
-    // 1.21.1 的映射、Loader 与 Fabric API 使用已验证的稳定本地缓存。
-    mappings files(".gradle/se-local/yarn-${project.yarn_mappings}-v2.jar")
-    modImplementation files('.gradle/se-local/fabric-loader-0.20.1.jar')
-    modCompileOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
-    modRuntimeOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
-    // Fabric API 元 JAR 仅供开发运行；正式依赖仍由 fabric.mod.json 声明，不进入发布产物。
-    def fabricApiRuntimeJar = file(".gradle/se-local/fabric-api-${project.fabric_version}.jar")
-    if (fabricApiRuntimeJar.isFile()) {
-        modRuntimeOnly files(fabricApiRuntimeJar)
+    if (seLocalCache) {
+        // 1.21.1 的映射、Loader 与 Fabric API 使用已验证的稳定本地缓存。
+        mappings files(".gradle/se-local/yarn-${project.yarn_mappings}-v2.jar")
+        modImplementation files('.gradle/se-local/fabric-loader-0.20.1.jar')
+        modCompileOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
+        modRuntimeOnly fileTree(dir: '.gradle/se-fabric-api-nested', include: '*.jar')
+        // Fabric API 元 JAR 仅供开发运行；正式依赖仍由 fabric.mod.json 声明，不进入发布产物。
+        def fabricApiRuntimeJar = file(".gradle/se-local/fabric-api-${project.fabric_version}.jar")
+        if (fabricApiRuntimeJar.isFile()) {
+            modRuntimeOnly files(fabricApiRuntimeJar)
+        }
+    } else {
+        mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+        modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+        modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     }
 
-    // 编译期 Mixin API；运行时由 Fabric Loader 提供。
+    // 编译期 API；MixinExtras 实现由 Fabric Loader 提供。
+    compileOnly 'io.github.llamalad7:mixinextras-fabric:0.5.5'
     compileOnly('net.fabricmc:sponge-mixin:0.17.5+mixin.0.8.7') {
         transitive = false
     }
 
     // Backported Spears 1.8.0 仅用于编译期校验可选兼容；正式依赖仍由用户自行安装。
     if (!project.hasProperty('coreOnly')) {
-        if (!spearJar.isFile()) {
-            throw new GradleException("缺少 1.21.1 Spears 编译依赖：${spearJar}")
-        }
+        def spearJar = requireCompatJar('spear-backport-fabric-1.8.0-1.21.1.jar',
+                '9B6231BA0C2C9EAE0E37BBA52362F0E73901A3B123CF6BD0C7841E0CC35C84E2')
         modCompileOnly files(spearJar)
         if (spearOnly) {
             modRuntimeOnly files(spearJar)
@@ -110,7 +125,7 @@ dependencies {
 
     // Mod Menu 只在编译期校验配置页入口，运行期保持可选。
     if (!isolatedCompatBuild) {
-        if (modmenuJar.isFile()) {
+        if (seLocalCache && modmenuJar.isFile()) {
             modCompileOnly files(modmenuJar)
         } else {
             modCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
@@ -120,7 +135,6 @@ dependencies {
 
 if (isolatedCompatBuild) {
     sourceSets.main.java.exclude 'com/summy/enchantment/client/SummyEnchantmentModMenu.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
     if (project.hasProperty('coreOnly')) {
         sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearCompat.java'
         sourceSets.main.java.exclude 'com/summy/enchantment/compat/SpearMixinPlugin.java'
@@ -133,8 +147,6 @@ if (isolatedCompatBuild) {
         // 核心自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearFabricDevCheck.java'
     }
-    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
-    sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
 }
 
 // KubeJS 上游尚未发布 Fabric 1.21.1 对应版本，保留源码供后续恢复，不进入当前产物。
@@ -145,7 +157,6 @@ processResources {
     exclude 'kubejs.plugins.txt'
 
     if (isolatedCompatBuild) {
-        exclude 'summy_enchantment.summy_reliquary.mixins.json'
         if (project.hasProperty('coreOnly')) {
             exclude 'summy_enchantment.spears.mixins.json'
         }

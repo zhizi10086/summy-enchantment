@@ -17,9 +17,7 @@ def kubejsDevcheck = project.hasProperty('kubejsDevcheck')
 def spearOnly = project.hasProperty('spearOnly') || spearDevcheck
 def kubejsOnly = project.hasProperty('kubejsOnly') || kubejsDevcheck
 def isolatedCompatBuild = project.hasProperty('coreOnly') || spearOnly || kubejsOnly
-def spearJar = file('libs/spear-backport-neoforge-1.8.0-1.21.1.jar')
-def kubejsJar = file('libs/kubejs-neoforge-2101.7.2-build.381.jar')
-def rhinoJar = file('libs/rhino-neoforge-2101.2.7-build.81.jar')
+apply from: file('../tools/compat-jars.gradle')
 
 if ([project.hasProperty('coreOnly'), spearOnly, kubejsOnly].count { it } > 1) {
     throw new GradleException('coreOnly、spearOnly 和 kubejsOnly 不能同时启用')
@@ -32,7 +30,7 @@ base {
 repositories {
     // Gate A 使用的官方 minecraft-dependencies module metadata 回退缓存。
     def seLocalMaven = file('.gradle/se-local-maven')
-    if (seLocalMaven.isDirectory()) {
+    if (providers.gradleProperty('seLocalCache').isPresent() && seLocalMaven.isDirectory()) {
         maven {
             name = 'SELocalMaven'
             url = uri(seLocalMaven)
@@ -66,6 +64,19 @@ repositories {
                 includeVersion('com.google.j2objc', 'j2objc-annotations', '1.3')
                 includeVersion('commons-io', 'commons-io', '2.11.0')
             }
+        }
+    }
+    if (!providers.gradleProperty('seLocalCache').isPresent() || !seLocalMaven.isDirectory()) {
+        // Minecraft 库坐标由 NeoForged 通过独立仓库的 Gradle module metadata 发布。
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = 'NeoForgedMojangMetadata'
+                    url = 'https://neoforged.forgecdn.net/mojang-meta'
+                    metadataSources { gradleMetadata() }
+                }
+            }
+            filter { includeModule('net.neoforged', 'minecraft-dependencies') }
         }
     }
     maven {
@@ -110,7 +121,7 @@ neoForge {
     runs {
         client {
             client()
-            gameDirectory = project.file('run')
+            gameDirectory = project.file(project.findProperty('seTestRunDir') ?: 'run')
             if (project.hasProperty('devcheck') || coreDevcheckEnabled || spearDevcheck || kubejsDevcheck) {
                 systemProperty 'summy_enchantment.devcheck', 'true'
                 systemProperty 'summy_enchantment.devcheck.mode',
@@ -125,7 +136,7 @@ neoForge {
 
         server {
             server()
-            gameDirectory = project.file('run')
+            gameDirectory = project.file(project.findProperty('seTestRunDir') ?: 'run')
             programArgument '--nogui'
         }
     }
@@ -143,9 +154,8 @@ dependencies {
 
     // Backported Spears 1.8.0 仅用于编译期校验可选兼容。
     if (!project.hasProperty('coreOnly') && !kubejsOnly) {
-        if (!spearJar.isFile()) {
-            throw new GradleException("缺少 1.21.1 Spears 编译依赖：${spearJar}")
-        }
+        def spearJar = requireCompatJar('spear-backport-neoforge-1.8.0-1.21.1.jar',
+                '7C4D77EAB65359950C33D7D32189359277651FFF30F11C5C3D7B638EC5E86DF4')
         compileOnly files(spearJar)
         if (spearOnly) {
             runtimeOnly files(spearJar)
@@ -154,9 +164,10 @@ dependencies {
 
     // KubeJS 2101 API 仅用于编译与本地兼容自检，运行期由用户安装。
     if (!project.hasProperty('coreOnly') && !spearOnly) {
-        if (!kubejsJar.isFile() || !rhinoJar.isFile()) {
-            throw new GradleException("缺少 1.21.1 KubeJS/Rhino 编译依赖")
-        }
+        def kubejsJar = requireCompatJar('kubejs-neoforge-2101.7.2-build.381.jar',
+                '07D8CB7AC1F7EF81F17AE00BFD84C92C18AC0398E83E64A27D91717969316BC0')
+        def rhinoJar = requireCompatJar('rhino-2101.2.7-build.81.jar',
+                'C79F19D9ACEA367ADC1A8631FFC04C300A6E2B4902994A0111BD283B5E7F19FB')
         compileOnly files(kubejsJar)
         compileOnly files(rhinoJar)
         if (kubejsOnly) {
@@ -182,6 +193,7 @@ if (isolatedCompatBuild) {
         // 核心与 KubeJS 自检不引用可选 Spears 类型；矛专项留给完整 devcheck 环境。
         sourceSets.main.java.exclude 'com/summy/enchantment/devcheck/SpearForgeDevCheck.java'
     }
+    sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryCompat.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/compat/SummyReliquaryMixinPlugin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.java'
     sourceSets.main.java.exclude 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.java'
@@ -255,3 +267,5 @@ publishing {
         }
     }
 }
+
+apply from: file('../tools/verify-kubejs-selftest.gradle')

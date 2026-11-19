@@ -3,6 +3,7 @@ package com.summy.enchantment.compat;
 import com.summy.enchantment.SummyEnchantment;
 import com.summy.enchantment.combat.CombatFormulas;
 import com.summy.enchantment.combat.EnchantmentEffects;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.summy.enchantment.config.SummyEnchantmentConfig;
 import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.network.ParticlePreferences;
@@ -14,144 +15,31 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.fml.ModList;
 
 import java.util.Locale;
 
-/**
- * 与 Summy Reliquary（mod id: {@code summy_reliquary}）的近战兼容层。
- *
- * <p>SR 有两处"自造"的近战伤害，都自己调 {@code target.hurt(playerAttack)}，因此完全绕过
- * ER 挂在 {@code Player#attack} 上的近战管线：
- * <ul>
- *     <li>暗仪刺刀「遁入暗影」的基础斩击 / 强力斩击（{@code ShadowDash#strike} / {@code #heavySlash}）；</li>
- *     <li>投掷长矛命中（{@code ThrownSpear#onHitEntity}）。</li>
- * </ul>
- * 这里把它们的伤害乘区与命中后效果补齐，口径与左键近战一致（强力斩击按 SR 原设计不吃乘区）。
- *
- * <p>本类刻意不引用 SR 的任何类：是否安装靠类文件/模组列表判断，注入点由独立的可选 Mixin 提供。
- */
+/** SR 专用入口及其注入诊断。 */
 public final class SummyReliquaryCompat {
-	private static final String MOD_ID = "summy_reliquary";
-	/** 用来探测 SR 是否存在的类文件路径（只查资源，不加载类） */
-	private static final String PROBE_CLASS = "com/summy/reliquary/effect/ShadowDash.class";
-
-	private static Boolean active;
-	/** 首次真正走到兼容路径时打一条日志（只打一次），用来在实机确认注入确实命中了 */
 	private static boolean loggedFirstHit;
 
 	private SummyReliquaryCompat() {
 	}
 
-	/** 兼容是否生效（没装 SR 时恒为 false，整条链路等于不存在） */
-	public static boolean isActive() {
-		if (active == null) {
-			boolean classVisible = false;
-			try {
-				// 只查类文件，绝不能 Class.forName —— 那会在 Mixin 准备阶段就把 SR 的类加载进来
-				classVisible = SummyReliquaryCompat.class.getClassLoader().getResource(PROBE_CLASS) != null;
-			} catch (Throwable ignored) {
-				// 退回到下面的模组列表判断
-			}
-			ModList modList = ModList.get();
-			active = classVisible || (modList != null && modList.isLoaded(MOD_ID));
-		}
-		return active;
-	}
-
-	/**
-	 * 近战伤害乘区：力量 × 复仇，与 {@code PlayerEntityMixin} 里的算法一致。
-	 *
-	 * <p>1.3.7 起"死神祝福·造成侧"改为全类型、统一在受伤侧按攻击者结算，因此这里不再乘它
-	 * （否则近战会与受伤侧那次重复叠加）。
-	 */
-	public static float meleeMultiplier(Player attacker) {
-		return CombatFormulas.strengthMultiplier(attacker)
-				* EnchantmentEffects.revengeMultiplier(attacker);
-	}
-
-	/**
-	 * 近战命中后的统一结算：SR 的两处斩击 / 投掷命中与左键近战共用同一套口径，并打一行诊断日志。
-	 *
-	 * <p>顺序与原来的实现逐行一致：魔剑 → 嗜血 → 主命中粒子 → 斩杀（仅主命中）→ 出其不意。
-	 * 本轮收紧两处口径：
-	 * <ul>
-	 *     <li>这一击已经把目标打死（或目标本来就已死）时，不再补魔剑 / 斩杀 / 出其不意，也不再发它们的粒子；
-	 *     嗜血照常按本次伤害回血（击杀也要回血）；</li>
-	 *     <li>出其不意的粒子只在<b>二次伤害确实落地</b>之后才播，避免"只有粒子、没有伤害"的假象。</li>
-	 * </ul>
-	 *
-	 * @param entry         注入点标签（诊断日志用）：strike / heavySlash / thrownSpear / melee
-	 * @param rawAmount     未乘乘区的原始金额
-	 * @param amount        攻击侧金额（已乘力量 × 复仇；死神祝福·造成侧自 1.3.7 起在受伤侧统一结算）
-	 * @param landed        这一击是否真的落地（原版 hurt 的返回值）
-	 * @param allowExecute  是否允许斩杀判定
-	 * @param allowSurprise 是否允许出其不意（强力斩击按设计传 false）
-	 * @param mainHit       是否主命中（横扫的附加目标传 false：不掷斩杀、不出主命中粒子）
-	 */
 	public static void settleHit(String entry, Player attacker, ItemStack weapon, Entity target,
 			DamageSource source, float rawAmount, float amount, boolean landed, boolean allowExecute,
 			boolean allowSurprise, boolean mainHit) {
-		if (attacker == null || target == null) {
+		MeleeSettlement.Result result = MeleeSettlement.settleHit(entry, attacker, weapon, target, source,
+				rawAmount, amount, landed, allowExecute, allowSurprise, mainHit);
+		if (result == null || attacker.level().isClientSide()) {
 			return;
 		}
-		// 这条只作"SR 兼容注入确实命中了"的实机判据，所以必须装了 SR 才有意义
-		// （左键近战也走本方法，不装 SR 时它同样会被调用）
-		if (isActive() && !loggedFirstHit) {
+		if (!loggedFirstHit) {
 			loggedFirstHit = true;
-			// require = 0 时"注入没命中"是静默的，这条日志是唯一的实机判据
 			SummyEnchantment.LOGGER.info("[SE] Summy Reliquary 近战兼容已生效：本次命中按近战管线结算");
 		}
-		boolean targetGone = target instanceof LivingEntity living && (living.isDeadOrDying()
-				|| living.getHealth() <= 0.0F);
-
-		float primaryMagic = 0.0F;
-		float primaryHealed = 0.0F;
-		float surpriseMagic = 0.0F;
-		float surpriseHealed = 0.0F;
-		boolean executed = false;
-		EnchantmentEffects.SurpriseRoll surprise = null;
-		boolean surpriseLanded = false;
-
-		if (landed) {
-			if (!targetGone) {
-				primaryMagic = EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
-			}
-			// 嗜血与目标是否还活着无关：击杀也要按本次伤害回血
-			primaryHealed = EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
-			if (mainHit) {
-				MeleeParticles.spawnOnHit(attacker, target);
-			}
-			if (!targetGone && mainHit && allowExecute) {
-				executed = EnchantmentEffects.tryExecuteReport(attacker, target, weapon);
-			}
-			if (!targetGone && allowSurprise) {
-				surprise = EnchantmentEffects.rollSurpriseRoll(attacker, weapon);
-				if (surprise.hit()) {
-					// 与近战管线保持一致：先清无敌帧，再用同一个伤害源与金额补一次
-					if (target instanceof LivingEntity livingTarget) {
-						livingTarget.invulnerableTime = 0;
-					}
-					if (target.hurt(source, amount)) {
-						surpriseLanded = true;
-						MeleeParticles.spawnSurprise(attacker, target);
-						surpriseMagic = EnchantmentEffects.applySpellbladeReport(attacker, weapon, target, amount);
-						surpriseHealed = EnchantmentEffects.applyLifestealReport(attacker, weapon, amount);
-					}
-				}
-			}
-		}
-
-		float totalMagic = primaryMagic + surpriseMagic;
-		float totalHealed = primaryHealed + surpriseHealed;
-		logSettlement(entry, attacker, weapon, target, rawAmount, amount, landed, totalMagic, totalHealed, executed,
-				allowExecute, allowSurprise, targetGone, surprise, surpriseLanded);
-		if (!attacker.level().isClientSide) {
-			SummyEnchantmentScriptHooks.fireMeleeSettled(entry, attacker, target, weapon, source,
-					rawAmount, amount, landed, mainHit, primaryMagic, primaryHealed,
-					surpriseMagic, surpriseHealed, executed,
-					surprise != null && surprise.hit(), surpriseLanded);
-		}
+		logSettlement(entry, attacker, weapon, target, rawAmount, amount, landed, result.magic(), result.healed(),
+				result.executed(), allowExecute, allowSurprise, result.targetGone(), result.surprise(),
+				result.surpriseLanded());
 	}
 
 	// ==================== 诊断日志（debug_logs） ====================
@@ -172,12 +60,7 @@ public final class SummyReliquaryCompat {
 			float rawAmount, float amount, boolean landed, float magic, float healed, boolean executed,
 			boolean allowExecute, boolean allowSurprise, boolean targetGone,
 			EnchantmentEffects.SurpriseRoll surprise, boolean surpriseLanded) {
-		if (!SummyEnchantmentConfig.get().debugLogs || !isActive()) {
-			return;
-		}
-		// 只在逻辑服务端输出：客户端预测也会跑同一段注入（hurt 必然 false、金额也不等于服务端），
-		// 两行叠在一起反而看不清真正生效的那一次
-		if (attacker.level().isClientSide()) {
+		if (!SummyEnchantmentConfig.get().debugLogs) {
 			return;
 		}
 		long tick = attacker.level().getGameTime();

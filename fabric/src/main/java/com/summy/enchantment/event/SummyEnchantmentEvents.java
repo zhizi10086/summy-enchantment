@@ -1,5 +1,6 @@
 package com.summy.enchantment.event;
 
+import com.summy.enchantment.registry.EnchantmentRef;
 import com.summy.enchantment.combat.EnchantmentEffects;
 import com.summy.enchantment.combat.ArrowTraits;
 import com.summy.enchantment.combat.ElectricArc;
@@ -73,6 +74,7 @@ public final class SummyEnchantmentEvents {
 
 		// 停服：箭矢特性表整体清空（箭是短命实体，跨存档没有意义）
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
+			EnchantmentRef.clearServerRegistry();
 			ArrowTraits.clearAll();
 			EnchantmentEffects.clearHiddenBladeAll();
 			EnchantmentEffects.clearRevengeWindows();

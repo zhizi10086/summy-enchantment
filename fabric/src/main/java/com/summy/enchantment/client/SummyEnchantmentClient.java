@@ -118,6 +118,7 @@ public class SummyEnchantmentClient implements ClientModInitializer {
 
 		// 离开服务器/世界后，恢复成本地配置文件里的设置
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(() -> {
+			EnchantmentRef.clearClientRegistry();
 			particlePreferenceDirty = true;
 			serverSupportsLongDistanceParticles = false;
 			// 换服务器 / 切换世界时清掉箭矢特性表（客户端侧只需轻盈表）

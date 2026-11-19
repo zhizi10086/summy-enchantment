@@ -149,6 +149,7 @@ public final class SummyEnchantmentClient {
 	}
 
 	private static void onLoggingOut(ClientPlayerNetworkEvent.LoggingOut event) {
+		EnchantmentRef.clearClientRegistry();
 		particlePreferenceDirty = true;
 		serverSupportsLongDistanceParticles = false;
 		if (usingServerConfig) {

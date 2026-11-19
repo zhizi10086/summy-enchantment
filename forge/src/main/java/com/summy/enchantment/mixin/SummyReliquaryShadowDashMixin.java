@@ -1,6 +1,7 @@
 package com.summy.enchantment.mixin;
 
 import com.summy.enchantment.combat.EnchantmentEffects;
+import com.summy.enchantment.combat.MeleeSettlement;
 import com.summy.enchantment.compat.SummyReliquaryCompat;
 import com.summy.enchantment.particle.MeleeParticles;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
@@ -43,7 +44,7 @@ public abstract class SummyReliquaryShadowDashMixin {
 		if (player == null) {
 			return original.call(target, source, amount);
 		}
-		float adjusted = amount * SummyReliquaryCompat.meleeMultiplier(player);
+		float adjusted = amount * MeleeSettlement.meleeMultiplier(player);
 		boolean hit = original.call(target, source, adjusted);
 		SummyReliquaryCompat.settleHit("strike", player, player.getMainHandItem(), target, source,
 				amount, adjusted, hit, true, true, true);

@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = '',
-    [string]$ReleaseRoot = ''
+    [string]$FabricJar = '',
+    [string]$ForgeJar = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -12,8 +13,13 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
     }
     $RepoRoot = Split-Path -Parent $scriptRoot
 }
-if ([string]::IsNullOrWhiteSpace($ReleaseRoot)) {
-    $ReleaseRoot = Join-Path $RepoRoot '..\..\JAR'
+if ([string]::IsNullOrWhiteSpace($FabricJar) -or [string]::IsNullOrWhiteSpace($ForgeJar)) {
+    throw 'Specify this build''s candidates with -FabricJar and -ForgeJar.'
+}
+$fabricJar = (Resolve-Path -LiteralPath $FabricJar).ProviderPath
+$forgeJar = (Resolve-Path -LiteralPath $ForgeJar).ProviderPath
+if ($fabricJar -eq $forgeJar) {
+    throw 'Provide a distinct candidate JAR for each loader.'
 }
 
 $utf8 = [System.Text.Encoding]::UTF8
@@ -40,10 +46,6 @@ $forgeMinecraftVersion = $Matches[1].Trim()
 if ($fabricMinecraftVersion -ne $forgeMinecraftVersion) {
     throw "Fabric 与 Forge 的 minecraft_version 不一致：$fabricMinecraftVersion / $forgeMinecraftVersion"
 }
-$fabricJarDirectory = Join-Path (Join-Path $ReleaseRoot $fabricMinecraftVersion) 'summy-enchantment'
-$forgeJarDirectory = Join-Path (Join-Path $ReleaseRoot $forgeMinecraftVersion) 'summy-enchantment-neoforge'
-$fabricJar = Join-Path $fabricJarDirectory ('summy-enchantment-{0}.jar' -f $fabricVersion)
-$forgeJar = Join-Path $forgeJarDirectory ('summy-enchantment-{0}.jar' -f $forgeVersion)
 $failures = [System.Collections.Generic.List[string]]::new()
 $checks = 0
 
@@ -127,12 +129,38 @@ if ($failures.Count -eq 0) {
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $pair.Path).Hash
         $devcheckCount = @($entries | Where-Object { $_ -like '*devcheck*' }).Count
         $externalCount = @($entries | Where-Object {
-            $_ -match '(?i)^(celestial|apotheosis|majrusz|dev/latvian|com/summy/reliquary|com/notunanancyowen/spears)'
+            $_ -match '(?i)^(celestial|apotheosis|majrusz|dev/shadowsoffire|dev/latvian|com/summy/reliquary|com/notunanancyowen/spears)'
         }).Count
         $licenseCount = @($entries | Where-Object { $_ -eq 'LICENSE_summy-enchantment' }).Count
         $metadataText = Get-ZipEntryText $pair.Path $pair.Metadata
 
         Check-Release "$($pair.Loader) metadata exists" ($null -ne $metadataText) $pair.Metadata
+        $mainMixin = 'summy_enchantment.mixins.json'
+        $spearMixin = 'summy_enchantment.spears.mixins.json'
+        $srMixin = 'summy_enchantment.summy_reliquary.mixins.json'
+        $kubePlugin = 'com/summy/enchantment/compat/kubejs/SummyEnchantmentKubeJSPlugin.class'
+        $srClasses = @($entries | Where-Object { $_ -match 'SummyReliquary.+\.class$' })
+        $hasKubePlugin = $entries -contains 'kubejs.plugins.txt' -and $entries -contains $kubePlugin
+        $hasSpear = $entries -contains 'com/summy/enchantment/mixin/SpearPiercingWeaponCompatMixin.class' -and
+            $entries -contains 'com/summy/enchantment/mixin/SpearKineticWeaponCompatMixin.class'
+        Check-Release "$($pair.Loader) complete Mixin set" (
+            $entries -contains $mainMixin -and $entries -contains $spearMixin -and $hasSpear -and
+            ([string]$metadataText).Contains($mainMixin) -and ([string]$metadataText).Contains($spearMixin)
+        ) 'main + Spears'
+        if ($pair.Loader -eq 'Fabric') {
+            Check-Release 'Fabric excludes SR and KubeJS hooks' (
+                $entries -notcontains $srMixin -and $srClasses.Count -eq 0 -and
+                -not ([string]$metadataText).Contains($srMixin) -and
+                $entries -notcontains 'kubejs.plugins.txt' -and $entries -notcontains $kubePlugin
+            ) 'platform package'
+        } else {
+            Check-Release 'NeoForge has SR and KubeJS hooks' (
+                $hasKubePlugin -and $entries -contains $srMixin -and
+                ([string]$metadataText).Contains($srMixin) -and
+                $entries -contains 'com/summy/enchantment/mixin/SummyReliquaryShadowDashMixin.class' -and
+                $entries -contains 'com/summy/enchantment/mixin/SummyReliquaryThrownSpearMixin.class'
+            ) 'platform package'
+        }
         Check-Release "$($pair.Loader) no devcheck" ($devcheckCount -eq 0) "entries=$devcheckCount"
         Check-Release "$($pair.Loader) no external namespaces" ($externalCount -eq 0) "entries=$externalCount"
         Check-Release "$($pair.Loader) contains MIT license" ($licenseCount -eq 1) "entries=$licenseCount"

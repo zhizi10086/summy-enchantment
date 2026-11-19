@@ -1,6 +1,6 @@
 # Summy Enchantment
 
-[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.4.3+1.21.1 Release 说明](docs/releases/1.4.3+1.21.1.md) · [许可证](LICENSE) · [第三方构建依赖](THIRD_PARTY_NOTICES.md)
+[更新日志](CHANGELOG.md) · [发布流程](docs/release-process.md) · [1.4.3-fix+1.21.1 Release 说明](docs/releases/1.4.3-fix+1.21.1.md) · [许可证](LICENSE) · [第三方构建依赖](THIRD_PARTY_NOTICES.md)
 
 Minecraft **1.21.1** 的附魔与机制改造模组：重做锋利与力量、铁砧改为消耗经验点数，
 新增 32 个附魔（含锋利Plus）、11 组配置页（99 项）与可自定义的粒子特效；可选兼容矛
@@ -11,8 +11,8 @@ Mojang 官方映射；两树功能一致。
 
 | 目录 | 平台 | 版本 |
 | --- | --- | --- |
-| [`fabric/`](fabric/README.md) | Fabric Loader 0.20.1 + Fabric API 0.116.18+1.21.1 | `1.4.3+1.21.1` |
-| [`forge/`](forge/README.md) | NeoForge 21.1.265 | `1.4.3+1.21.1-neoforge` |
+| [`fabric/`](fabric/README.md) | Fabric Loader 0.20.1 + Fabric API 0.116.18+1.21.1 | `1.4.3-fix+1.21.1` |
+| [`forge/`](forge/README.md) | NeoForge 21.1.265 | `1.4.3-fix+1.21.1-neoforge` |
 
 ## 兼容
 
@@ -23,17 +23,13 @@ Mojang 官方映射；两树功能一致。
 
 ## 构建
 
-两个工程都需要 **JDK 21**。
+使用 Java 21，在对应的 `fabric/` 或 `forge/` 目录执行：
 
 ```powershell
-cd fabric
-.\gradlew.bat clean build
-
-cd ..\forge
-.\gradlew.bat clean build verifyMixinTargets
+.\gradlew.bat clean build "-PcompatJarsDir=C:\path\to\compat-jars"
 ```
 
-各加载器目录的 README 提供开发、自检和兼容测试命令。
+`forge/` 是 1.21.1 的 NeoForge 工程。完整构建的兼容 JAR、离线构建、自检和候选检查见 [发布流程](docs/release-process.md)。
 
 ## 许可
 

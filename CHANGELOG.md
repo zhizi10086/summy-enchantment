@@ -1,5 +1,18 @@
 # 更新记录（Changelog）
 
+> `1.4.3-fix+1.21.1` · Minecraft 1.21.1 Fabric / NeoForge
+
+### 修复
+
+- 修正无限、经验修补、锋利Plus 与保护上限的判定。
+- 清理断线和停服后的附魔注册表引用。
+
+### 兼容
+
+- 修正 NeoForge 的 Apothic Enchanting 铁砧接管与生命修补识别，分离 SR 联动诊断。
+
+详见 [版本说明](docs/releases/1.4.3-fix+1.21.1.md)。
+
 > 本文档收录 Summy Enchantment 的历史版本变更；当前版本的内容与玩法以 README 和对应 Release 说明为准。
 >
 > 更新日志只记录行为变化、兼容边界和面向玩家的结果；完整构建与自检矩阵保留在发布核验。

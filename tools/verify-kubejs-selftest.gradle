@@ -1,53 +1,23 @@
-// 真实客户端自检需要专用存档。允许从仓库外目录复制一份现成世界，
-// 避免清理 run/ 后 quickPlaySingleplayer 停在主菜单并触发无意义的超时。
-tasks.register('prepareDevCheckWorld', Copy) {
-    if (project.hasProperty('devcheckWorldDir')) {
-        from file(project.property('devcheckWorldDir'))
-    }
-    into layout.projectDirectory.dir('run/saves/SeDevCheckWorld')
-}
-
-if (project.hasProperty('devcheck')) {
-    // ForgeGradle 的 runClient 可能在本脚本之后才创建，因此使用延迟匹配。
-    tasks.matching { it.name == 'runClient' }.configureEach {
-        dependsOn 'prepareDevCheckWorld'
+// 使用 NeoForge 1.21.1 的专项运行配置和本轮实例日志。
+def runDir = file(findProperty('seTestRunDir') ?: 'run')
+if (hasProperty('kubejsDevcheck')) {
+    tasks.named('runClient') {
         doFirst {
-            // KubeJS-only 自检必须在启动客户端前确认测试世界存在，避免停在主菜单后才超时。
-            if ((project.findProperty('devcheckMode') ?: 'full') == 'kubejs'
-                    && !file('run/saves/SeDevCheckWorld/level.dat').isFile()) {
-                throw new GradleException(
-                        '缺少 run/saves/SeDevCheckWorld。请先准备专用测试存档，' +
-                                '或使用 -PdevcheckWorldDir=<现成 SeDevCheckWorld 目录> 自动复制。')
+            if (!new File(runDir, 'saves/SeDevCheckWorld/level.dat').isFile()) {
+                throw new GradleException('测试实例缺少 saves/SeDevCheckWorld/level.dat')
             }
         }
     }
 }
-
-// KubeJS 真实客户端自检的自动断言。由 fabric/forge 两树共同引用。
 tasks.register('verifyKubeJsSelfTest') {
-    group = 'verification'
-    description = '运行 KJS-only 客户端自检，并检查日志中的 API、类过滤和事件标记。'
-    dependsOn 'runClient'
-
-    doFirst {
-        if (!project.hasProperty('devcheck')) {
-            throw new GradleException('verifyKubeJsSelfTest 需要 -Pdevcheck')
-        }
-        if ((project.findProperty('devcheckMode') ?: 'full') != 'kubejs') {
-            throw new GradleException('verifyKubeJsSelfTest 需要 -PdevcheckMode=kubejs')
-        }
-        if (!project.hasProperty('kubejsModsDir')) {
-            throw new GradleException('verifyKubeJsSelfTest 需要 -PkubejsModsDir=<目录>')
-        }
-        if (!file('run/saves/SeDevCheckWorld/level.dat').isFile()) {
-            throw new GradleException(
-                    '缺少 run/saves/SeDevCheckWorld。请先准备专用测试存档，' +
-                            '或使用 -PdevcheckWorldDir=<现成 SeDevCheckWorld 目录> 自动复制。')
-        }
+    if (project.hasProperty('kubejsDevcheck')) {
+        dependsOn 'runClient'
     }
-
     doLast {
-        def logDir = file('run/logs/kubejs')
+        if (!project.hasProperty('kubejsDevcheck')) {
+            throw new GradleException('verifyKubeJsSelfTest 需要 -PkubejsDevcheck')
+        }
+        def logDir = new File(runDir, 'logs/kubejs')
         def required = [
                 'startup.log': [
                         'SummyEnchantment binding hidden',

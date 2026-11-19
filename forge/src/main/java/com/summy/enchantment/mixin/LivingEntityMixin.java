@@ -201,9 +201,9 @@ public abstract class LivingEntityMixin {
 			if (repaired > 0) {
 				if (SummyEnchantmentConfig.get().debugLogs) {
 					SummyEnchantment.LOGGER.info(
-							"[SE] 生命修补：治疗 {} 被用于修复 {} 点耐久（本次不累积生命护盾，Apotheosis 生命修补={}，SE 优先）",
+							"[SE] 生命修补：治疗 {} 被用于修复 {} 点耐久（本次不累积生命护盾，Apothic Enchanting 生命修补={}，SE 优先）",
 							healed > 0.0F ? healed : amount, repaired,
-							ExternalEnchantmentCompat.hasApotheosisLifeMending(self));
+							ExternalEnchantmentCompat.hasApothicEnchantingLifeMending(self));
 				}
 				ci.cancel();
 				return;

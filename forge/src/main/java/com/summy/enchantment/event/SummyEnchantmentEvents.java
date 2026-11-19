@@ -19,7 +19,7 @@ import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.event.server.ServerStartedEvent;
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -37,7 +37,7 @@ public final class SummyEnchantmentEvents {
 	}
 
 	public static void register() {
-		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerStarted);
+		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerAboutToStart);
 		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onRegisterCommands);
 		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onLivingDeath);
 		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onPlayerClone);
@@ -48,7 +48,8 @@ public final class SummyEnchantmentEvents {
 		NeoForge.EVENT_BUS.addListener(SummyEnchantmentEvents::onServerStopped);
 	}
 
-	private static void onServerStarted(ServerStartedEvent event) {
+	// KubeJS 在 ServerStarting 发布 loaded 事件，查询需提前绑定本会话的动态注册表。
+	private static void onServerAboutToStart(ServerAboutToStartEvent event) {
 		EnchantmentRef.bindServerRegistry(
 				event.getServer().registryAccess().registryOrThrow(Registries.ENCHANTMENT));
 	}
@@ -145,6 +146,7 @@ public final class SummyEnchantmentEvents {
 	}
 
 	private static void onServerStopped(ServerStoppedEvent event) {
+		EnchantmentRef.clearServerRegistry();
 		MeleeParticles.clearBursts();
 		ParticlePreferences.clearAll();
 		ArrowTraits.clearAll();
